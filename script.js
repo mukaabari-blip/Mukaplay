@@ -281,3 +281,77 @@ function dessinerGameOver() {
 }
 
 // ---------- BOUCLE PRINCIPALE ----------
+function resetJeu() {
+  boutonRejouer.style.display = "none";
+  joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
+  obstacles = [];
+  score = 0;
+  jeuTermine = false;
+  compteur = 0;
+  planifierProchainObstacle();
+  initNuages();
+  demarrerMusique();
+  boucle();
+}
+
+function maj() {
+  joueur.vitesseY += gravite;
+  joueur.y += joueur.vitesseY;
+
+  if (joueur.y >= SOL_Y - joueur.hauteur) {
+    joueur.y = SOL_Y - joueur.hauteur;
+    joueur.vitesseY = 0;
+    joueur.surLeSol = true;
+  } else {
+    joueur.surLeSol = false;
+  }
+
+  compteur++;
+  if (compteur >= prochainObstacle) {
+    creerObstacle();
+    planifierProchainObstacle();
+  }
+
+  deplacerObstacles();
+  deplacerNuages();
+  verifierCollision();
+
+  if (!jeuTermine) score++;
+}
+
+function boucle() {
+  dessinerFond();
+
+  if (jeuTermine) {
+    dessinerSol();
+    dessinerObstacles();
+    dessinerJoueur();
+    dessinerGameOver();
+    return;
+  }
+
+  maj();
+  dessinerSol();
+  dessinerObstacles();
+  dessinerJoueur();
+  dessinerScore();
+
+  requestAnimationFrame(boucle);
+}
+
+function sauter() {
+  initAudio();
+  if (!jeuTermine && joueur.surLeSol) {
+    joueur.vitesseY = -15;
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") sauter();
+});
+
+canvas.addEventListener("touchstart", sauter);
+canvas.addEventListener("click", sauter);
+boutonRejouer.addEventListener("click", resetJeu);
+
+resetJeu();
