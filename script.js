@@ -1,71 +1,103 @@
 const canvas = document.getElementById("jeu");
 const ctx = canvas.getContext("2d");
 
-const joueur = {
-  x: 50,
-  y: 300,
-  largeur: 40,
-  hauteur: 40,
-  vitesseY: 0,
-  surLeSol: false
-};
-
 const gravite = 0.8;
 const sol = 360;
 
-let obstacles = [];
-let score = 0;
-let jeuTermine = false;
-let compteur = 0;
+let joueur, obstacles, score, jeuTermine, compteur, etoiles;
+
+function initEtoiles() {
+  etoiles = [];
+  for (let i = 0; i < 80; i++) {
+    etoiles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      taille: Math.random() * 2 + 1
+    });
+  }
+}
+
+function resetJeu() {
+  joueur = { x: 50, y: 300, largeur: 40, hauteur: 40, vitesseY: 0, surLeSol: false };
+  obstacles = [];
+  score = 0;
+  jeuTermine = false;
+  compteur = 0;
+  initEtoiles();
+  boucle();
+}
+
+function dessinerFond() {
+  ctx.fillStyle = "#05010d";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "white";
+  etoiles.forEach(e => {
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.taille, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
 
 function dessinerSol() {
-  ctx.fillStyle = "#654321";
+  ctx.fillStyle = "#4a4a5a";
   ctx.fillRect(0, sol + 40, canvas.width, 20);
 }
 
 function dessinerJoueur() {
-  ctx.fillStyle = "red";
-  ctx.fillRect(joueur.x, joueur.y, joueur.largeur, joueur.hauteur);
+  // Vaisseau : corps + nez triangulaire
+  ctx.fillStyle = "#00e5ff";
+  ctx.fillRect(joueur.x, joueur.y + 10, 30, 20);
+  ctx.beginPath();
+  ctx.moveTo(joueur.x + 30, joueur.y + 10);
+  ctx.lineTo(joueur.x + 40, joueur.y + 20);
+  ctx.lineTo(joueur.x + 30, joueur.y + 30);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function creerObstacle() {
-  obstacles.push({
-    x: canvas.width,
-    y: sol,
-    largeur: 30,
-    hauteur: 40
-  });
+  obstacles.push({ x: canvas.width, y: sol + 5, rayon: 18 });
 }
 
 function dessinerObstacles() {
-  ctx.fillStyle = "green";
+  ctx.fillStyle = "#8a8a8a";
   obstacles.forEach(o => {
-    ctx.fillRect(o.x, o.y, o.largeur, o.hauteur);
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.rayon, 0, Math.PI * 2);
+    ctx.fill();
   });
 }
 
 function deplacerObstacles() {
   obstacles.forEach(o => o.x -= 6);
-  obstacles = obstacles.filter(o => o.x + o.largeur > 0);
+  obstacles = obstacles.filter(o => o.x + o.rayon > 0);
 }
 
 function verifierCollision() {
   obstacles.forEach(o => {
-    if (
-      joueur.x < o.x + o.largeur &&
-      joueur.x + joueur.largeur > o.x &&
-      joueur.y < o.y + o.hauteur &&
-      joueur.y + joueur.hauteur > o.y
-    ) {
+    const centreJoueurX = joueur.x + joueur.largeur / 2;
+    const centreJoueurY = joueur.y + joueur.hauteur / 2;
+    const dist = Math.hypot(centreJoueurX - o.x, centreJoueurY - o.y);
+    if (dist < o.rayon + 18) {
       jeuTermine = true;
     }
   });
 }
 
 function dessinerScore() {
-  ctx.fillStyle = "black";
+  ctx.fillStyle = "white";
   ctx.font = "20px Arial";
-  ctx.fillText("Score: " + score, 20, 30);
+  ctx.fillText("Score: " + Math.floor(score / 10), 20, 30);
+}
+
+function dessinerGameOver() {
+  ctx.fillStyle = "white";
+  ctx.font = "30px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Game Over - Score: " + Math.floor(score / 10), canvas.width / 2, 180);
+  ctx.font = "18px Arial";
+  ctx.fillText("Appuie sur ESPACE ou touche l'écran pour rejouer", canvas.width / 2, 220);
+  ctx.textAlign = "left";
 }
 
 function maj() {
@@ -81,9 +113,7 @@ function maj() {
   }
 
   compteur++;
-  if (compteur % 90 === 0) {
-    creerObstacle();
-  }
+  if (compteur % 90 === 0) creerObstacle();
 
   deplacerObstacles();
   verifierCollision();
@@ -92,12 +122,13 @@ function maj() {
 }
 
 function boucle() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  dessinerFond();
 
   if (jeuTermine) {
-    ctx.fillStyle = "black";
-    ctx.font = "30px Arial";
-    ctx.fillText("Game Over - Score: " + Math.floor(score / 10), 250, 200);
+    dessinerSol();
+    dessinerObstacles();
+    dessinerJoueur();
+    dessinerGameOver();
     return;
   }
 
@@ -110,16 +141,19 @@ function boucle() {
   requestAnimationFrame(boucle);
 }
 
-function sauter() {
-  if (joueur.surLeSol) {
+function action() {
+  if (jeuTermine) {
+    resetJeu();
+  } else if (joueur.surLeSol) {
     joueur.vitesseY = -15;
   }
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") sauter();
+  if (e.code === "Space") action();
 });
 
-canvas.addEventListener("touchstart", sauter);
+canvas.addEventListener("touchstart", action);
+canvas.addEventListener("click", action);
 
-boucle();
+resetJeu();
