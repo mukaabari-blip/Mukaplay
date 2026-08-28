@@ -1,133 +1,49 @@
-const canvas = document.getElementById("jeu");
-const ctx = canvas.getContext("2d");
-const boutonRejouer = document.getElementById("boutonRejouer");
-const musiqueJeu = document.getElementById("musiqueJeu");
-
-const gravite = 0.8;
-const SOL_Y = 340;
-
-let joueur, obstacles, score, jeuTermine, compteur, nuages, prochainObstacle;
-
-// ---------- AUDIO ----------
-let audioCtx;
-
-function initAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === "suspended") {
-    audioCtx.resume();
-  }
-}
-
-function jouerNote(freq, duree, type = "square", volume = 0.08) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duree);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duree);
-}
-
-function demarrerMusique() {
-  musiqueJeu.currentTime = 0;
-  musiqueJeu.volume = 0.5;
-  musiqueJeu.play().catch(() => {});
-}
-
-function arreterMusique() {
-  musiqueJeu.pause();
-  musiqueJeu.currentTime = 0;
-}
-
-function jouerMusiqueFin() {
-  initAudio();
-  const notesFin = [
-    [196.00, 0.5], [174.61, 0.5], [146.83, 0.9], [130.81, 1.4]
-  ];
-  let t = 0;
-  notesFin.forEach(([freq, duree]) => {
-    setTimeout(() => jouerNote(freq, duree, "triangle", 0.15), t * 1000);
-    t += duree;
-  });
-}
-
-function jouerPet() {
-  initAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(35, audioCtx.currentTime + 0.5);
-  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.5);
-}
-
-// ---------- DÉCOR ----------
-function initNuages() {
-  nuages = [];
-  for (let i = 0; i < 4; i++) {
-    nuages.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * 80 });
-  }
-}
-
-function deplacerNuages() {
-  nuages.forEach(n => {
-    n.x -= 0.4;
-    if (n.x < -50) n.x = canvas.width + 50;
-  });
-}
-
-function dessinerFond() {
-  const degrade = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  degrade.addColorStop(0, "#87CEEB");
-  degrade.addColorStop(1, "#e0f7fa");
-  ctx.fillStyle = degrade;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#ffe066";
-  ctx.beginPath();
-  ctx.arc(700, 60, 30, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#a3d9a5";
-  ctx.beginPath();
-  ctx.moveTo(0, SOL_Y);
-  ctx.quadraticCurveTo(150, SOL_Y - 60, 300, SOL_Y);
-  ctx.quadraticCurveTo(450, SOL_Y - 40, 600, SOL_Y);
-  ctx.quadraticCurveTo(720, SOL_Y - 70, 800, SOL_Y);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  nuages.forEach(n => {
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 15, 0, Math.PI * 2);
-    ctx.arc(n.x + 15, n.y - 5, 18, 0, Math.PI * 2);
-    ctx.arc(n.x + 30, n.y, 15, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function dessinerSol() {
-  ctx.fillStyle = "#6b8e23";
-  ctx.fillRect(0, SOL_Y, canvas.width, canvas.height - SOL_Y);
-  ctx.fillStyle = "#4a6b1f";
-  ctx.fillRect(0, SOL_Y, canvas.width, 6);
-}
-
-// ---------- PERSONNAGES : duo, le second plus grand ----------
-// pieds : position Y où les pieds touchent le sol (identique pour les deux)
-// echelle : 1 = taille normale, >1 = plus grand
-function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
-  const anim = Math.floor(compteur / 6) % 2;
-  const h = 44 * echelle; // hauteur totale du personnage
-  const y = pieds - h;     // haut de la tête approximat
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mon Jeu de Plateforme</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #222;
+    }
+    #conteneur {
+      position: relative;
+    }
+    canvas {
+      border: 4px solid #444;
+      display: block;
+    }
+    #boutonRejouer {
+      position: absolute;
+      top: 220px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      font-size: 18px;
+      background: #6b8e23;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: none;
+    }
+    #boutonRejouer:hover {
+      background: #7fa62c;
+    }
+  </style>
+</head>
+<body>
+  <div id="conteneur">
+    <canvas id="jeu" width="800" height="400"></canvas>
+    <button id="boutonRejouer">Recommencer</button>
+  </div>
+  <audio id="musiqueJeu" src="Jason%20et%20Weslan.mp3" loop></audio>
+  <script src="script.js"></script>
+</body>
+</html>
