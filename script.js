@@ -1,5 +1,6 @@
 const canvas = document.getElementById("jeu");
 const ctx = canvas.getContext("2d");
+const boutonRejouer = document.getElementById("boutonRejouer");
 
 const gravite = 0.8;
 const sol = 360;
@@ -18,6 +19,7 @@ function initEtoiles() {
 }
 
 function resetJeu() {
+  boutonRejouer.style.display = "none";
   joueur = { x: 50, y: 300, largeur: 40, hauteur: 40, vitesseY: 0, surLeSol: false };
   obstacles = [];
   score = 0;
@@ -44,7 +46,6 @@ function dessinerSol() {
 }
 
 function dessinerJoueur() {
-  // Vaisseau : corps + nez triangulaire
   ctx.fillStyle = "#00e5ff";
   ctx.fillRect(joueur.x, joueur.y + 10, 30, 20);
   ctx.beginPath();
@@ -95,8 +96,6 @@ function dessinerGameOver() {
   ctx.font = "30px Arial";
   ctx.textAlign = "center";
   ctx.fillText("Game Over - Score: " + Math.floor(score / 10), canvas.width / 2, 180);
-  ctx.font = "18px Arial";
-  ctx.fillText("Appuie sur ESPACE ou touche l'écran pour rejouer", canvas.width / 2, 220);
   ctx.textAlign = "left";
 }
 
@@ -129,6 +128,7 @@ function boucle() {
     dessinerObstacles();
     dessinerJoueur();
     dessinerGameOver();
+    boutonRejouer.style.display = "block";
     return;
   }
 
@@ -141,19 +141,18 @@ function boucle() {
   requestAnimationFrame(boucle);
 }
 
-function action() {
-  if (jeuTermine) {
-    resetJeu();
-  } else if (joueur.surLeSol) {
+function sauter() {
+  if (!jeuTermine && joueur.surLeSol) {
     joueur.vitesseY = -15;
   }
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") action();
+  if (e.code === "Space") sauter();
 });
 
-canvas.addEventListener("touchstart", action);
-canvas.addEventListener("click", action);
+canvas.addEventListener("touchstart", sauter);
+canvas.addEventListener("click", sauter);
+boutonRejouer.addEventListener("click", resetJeu);
 
 resetJeu();
