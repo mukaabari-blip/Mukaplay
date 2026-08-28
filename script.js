@@ -44,7 +44,6 @@ function arreterMusique() {
   musiqueJeu.currentTime = 0;
 }
 
-// Musique de fin dramatique, quelques notes graves et lentes
 function jouerMusiqueFin() {
   initAudio();
   const notesFin = [
@@ -125,80 +124,90 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
 }
 
-// ---------- PERSONNAGE : petit garçon avec touffe ----------
-function dessinerJoueur() {
-  const x = joueur.x;
-  const y = joueur.y;
+// ---------- PERSONNAGES : duo, le second plus grand ----------
+// pieds : position Y où les pieds touchent le sol (identique pour les deux)
+// echelle : 1 = taille normale, >1 = plus grand
+function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
   const anim = Math.floor(compteur / 6) % 2;
+  const h = 44 * echelle; // hauteur totale du personnage
+  const y = pieds - h;     // haut de la tête approximatif
 
   ctx.strokeStyle = "#3b2f2f";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * echelle;
   ctx.lineCap = "round";
 
   // Tête
   ctx.fillStyle = "#f1c27d";
   ctx.beginPath();
-  ctx.arc(x + 15, y + 10, 9, 0, Math.PI * 2);
+  ctx.arc(x + 15 * echelle, y + 10 * echelle, 9 * echelle, 0, Math.PI * 2);
   ctx.fill();
 
   // Touffe de cheveux
   ctx.fillStyle = "#3b2f2f";
   ctx.beginPath();
-  ctx.moveTo(x + 10, y + 3);
-  ctx.quadraticCurveTo(x + 12, y - 8, x + 16, y - 2);
-  ctx.quadraticCurveTo(x + 18, y - 9, x + 21, y - 1);
-  ctx.quadraticCurveTo(x + 20, y + 3, x + 15, y + 2);
+  ctx.moveTo(x + 10 * echelle, y + 3 * echelle);
+  ctx.quadraticCurveTo(x + 12 * echelle, y - 8 * echelle, x + 16 * echelle, y - 2 * echelle);
+  ctx.quadraticCurveTo(x + 18 * echelle, y - 9 * echelle, x + 21 * echelle, y - 1 * echelle);
+  ctx.quadraticCurveTo(x + 20 * echelle, y + 3 * echelle, x + 15 * echelle, y + 2 * echelle);
   ctx.closePath();
   ctx.fill();
 
   // Yeux
   ctx.fillStyle = "#222";
   ctx.beginPath();
-  ctx.arc(x + 12, y + 9, 1.3, 0, Math.PI * 2);
-  ctx.arc(x + 18, y + 9, 1.3, 0, Math.PI * 2);
+  ctx.arc(x + 12 * echelle, y + 9 * echelle, 1.3 * echelle, 0, Math.PI * 2);
+  ctx.arc(x + 18 * echelle, y + 9 * echelle, 1.3 * echelle, 0, Math.PI * 2);
   ctx.fill();
 
   // T-shirt
-  ctx.fillStyle = "#3b82f6";
-  ctx.fillRect(x + 8, y + 18, 14, 14);
+  ctx.fillStyle = couleurShirt;
+  ctx.fillRect(x + 8 * echelle, y + 18 * echelle, 14 * echelle, 14 * echelle);
 
   // Bras
-  ctx.strokeStyle = "#3b82f6";
+  ctx.strokeStyle = couleurShirt;
   ctx.beginPath();
-  ctx.moveTo(x + 15, y + 20);
-  ctx.lineTo(x + 4, y + 28);
-  ctx.moveTo(x + 15, y + 20);
-  ctx.lineTo(x + 26, y + 28);
+  ctx.moveTo(x + 15 * echelle, y + 20 * echelle);
+  ctx.lineTo(x + 4 * echelle, y + 28 * echelle);
+  ctx.moveTo(x + 15 * echelle, y + 20 * echelle);
+  ctx.lineTo(x + 26 * echelle, y + 28 * echelle);
   ctx.stroke();
 
   // Cou
   ctx.strokeStyle = "#3b2f2f";
   ctx.beginPath();
-  ctx.moveTo(x + 15, y + 19);
-  ctx.lineTo(x + 15, y + 32);
+  ctx.moveTo(x + 15 * echelle, y + 19 * echelle);
+  ctx.lineTo(x + 15 * echelle, y + 32 * echelle);
   ctx.stroke();
 
   // Jambes
   ctx.strokeStyle = "#8b5a2b";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 4 * echelle;
   ctx.beginPath();
   if (!joueur.surLeSol) {
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 8, y + 42);
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 22, y + 42);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 8 * echelle, y + 42 * echelle);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 22 * echelle, y + 42 * echelle);
   } else if (anim === 0) {
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 6, y + 44);
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 22, y + 44);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 6 * echelle, y + 44 * echelle);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 22 * echelle, y + 44 * echelle);
   } else {
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 8, y + 44);
-    ctx.moveTo(x + 15, y + 32);
-    ctx.lineTo(x + 24, y + 44);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 8 * echelle, y + 44 * echelle);
+    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
+    ctx.lineTo(x + 24 * echelle, y + 44 * echelle);
   }
   ctx.stroke();
+}
+
+function dessinerJoueur() {
+  const pieds = joueur.y + joueur.hauteur; // niveau des pieds, identique pour les deux
+  // Personnage 1 : taille normale
+  dessinerPersonnage(joueur.x, pieds, 1, "#3b82f6");
+  // Personnage 2 : plus grand, juste à côté
+  dessinerPersonnage(joueur.x + 26, pieds, 1.4, "#ef4444");
 }
 
 // ---------- OBSTACLES ----------
@@ -240,17 +249,25 @@ function deplacerObstacles() {
   obstacles = obstacles.filter(o => o.x + o.taille > 0);
 }
 
+// La hitbox couvre désormais les deux personnages (du personnage 1 jusqu'au bord droit du personnage 2, plus grand)
 function verifierCollision() {
+  const largeurTotale = 26 + 42 * 1.4; // décalage + largeur du personnage 2 agrandi
+  const hauteurMax = 44 * 1.4; // hauteur du plus grand des deux
+
   obstacles.forEach(o => {
     const oGauche = o.x - o.taille / 2;
     const oDroite = o.x + o.taille / 2;
     const oHaut = SOL_Y - o.taille;
+
+    const pieds = joueur.y + joueur.hauteur;
+    const hautDuo = pieds - hauteurMax;
+
     if (
       !jeuTermine &&
       joueur.x < oDroite &&
-      joueur.x + joueur.largeur > oGauche &&
-      joueur.y < SOL_Y &&
-      joueur.y + joueur.hauteur > oHaut
+      joueur.x + largeurTotale > oGauche &&
+      hautDuo < SOL_Y &&
+      pieds > oHaut
     ) {
       jeuTermine = true;
       terminerJeu();
