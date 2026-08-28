@@ -1,6 +1,7 @@
 const canvas = document.getElementById("jeu");
 const ctx = canvas.getContext("2d");
 const boutonRejouer = document.getElementById("boutonRejouer");
+const musiqueJeu = document.getElementById("musiqueJeu");
 
 const gravite = 0.8;
 const SOL_Y = 340;
@@ -9,17 +10,6 @@ let joueur, obstacles, score, jeuTermine, compteur, nuages, prochainObstacle;
 
 // ---------- AUDIO ----------
 let audioCtx;
-let indexNote = 0;
-let musiqueTimeoutId = null;
-let musiqueActive = false;
-
-const melodie = [
-  [659.25, 0.2], [493.88, 0.1], [523.25, 0.1], [587.33, 0.2],
-  [523.25, 0.1], [493.88, 0.1], [440.00, 0.2], [440.00, 0.1],
-  [523.25, 0.1], [659.25, 0.2], [587.33, 0.1], [523.25, 0.1],
-  [493.88, 0.3], [523.25, 0.1], [587.33, 0.2], [659.25, 0.2],
-  [523.25, 0.2], [440.00, 0.2], [440.00, 0.4]
-];
 
 function initAudio() {
   if (!audioCtx) {
@@ -30,12 +20,12 @@ function initAudio() {
   }
 }
 
-function jouerNote(freq, duree) {
+function jouerNote(freq, duree, type = "square", volume = 0.08) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  osc.type = "square";
+  osc.type = type;
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duree);
   osc.connect(gain);
   gain.connect(audioCtx.destination);
@@ -43,25 +33,28 @@ function jouerNote(freq, duree) {
   osc.stop(audioCtx.currentTime + duree);
 }
 
-function jouerMelodie() {
-  if (!musiqueActive) return;
-  const [freq, duree] = melodie[indexNote];
-  jouerNote(freq, duree);
-  indexNote = (indexNote + 1) % melodie.length;
-  musiqueTimeoutId = setTimeout(jouerMelodie, duree * 1000);
-}
-
 function demarrerMusique() {
-  initAudio();
-  musiqueActive = true;
-  indexNote = 0;
-  clearTimeout(musiqueTimeoutId);
-  jouerMelodie();
+  musiqueJeu.currentTime = 0;
+  musiqueJeu.volume = 0.5;
+  musiqueJeu.play().catch(() => {});
 }
 
 function arreterMusique() {
-  musiqueActive = false;
-  clearTimeout(musiqueTimeoutId);
+  musiqueJeu.pause();
+  musiqueJeu.currentTime = 0;
+}
+
+// Musique de fin dramatique, quelques notes graves et lentes
+function jouerMusiqueFin() {
+  initAudio();
+  const notesFin = [
+    [196.00, 0.5], [174.61, 0.5], [146.83, 0.9], [130.81, 1.4]
+  ];
+  let t = 0;
+  notesFin.forEach(([freq, duree]) => {
+    setTimeout(() => jouerNote(freq, duree, "triangle", 0.15), t * 1000);
+    t += duree;
+  });
 }
 
 function jouerPet() {
@@ -132,7 +125,7 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
 }
 
-// ---------- PERSONNAGE ----------
+// ---------- PERSONNAGE : petit garçon avec touffe ----------
 function dessinerJoueur() {
   const x = joueur.x;
   const y = joueur.y;
@@ -142,23 +135,52 @@ function dessinerJoueur() {
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
 
+  // Tête
   ctx.fillStyle = "#f1c27d";
   ctx.beginPath();
-  ctx.arc(x + 15, y + 8, 8, 0, Math.PI * 2);
+  ctx.arc(x + 15, y + 10, 9, 0, Math.PI * 2);
   ctx.fill();
 
+  // Touffe de cheveux
+  ctx.fillStyle = "#3b2f2f";
   ctx.beginPath();
-  ctx.moveTo(x + 15, y + 16);
+  ctx.moveTo(x + 10, y + 3);
+  ctx.quadraticCurveTo(x + 12, y - 8, x + 16, y - 2);
+  ctx.quadraticCurveTo(x + 18, y - 9, x + 21, y - 1);
+  ctx.quadraticCurveTo(x + 20, y + 3, x + 15, y + 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Yeux
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(x + 12, y + 9, 1.3, 0, Math.PI * 2);
+  ctx.arc(x + 18, y + 9, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // T-shirt
+  ctx.fillStyle = "#3b82f6";
+  ctx.fillRect(x + 8, y + 18, 14, 14);
+
+  // Bras
+  ctx.strokeStyle = "#3b82f6";
+  ctx.beginPath();
+  ctx.moveTo(x + 15, y + 20);
+  ctx.lineTo(x + 4, y + 28);
+  ctx.moveTo(x + 15, y + 20);
+  ctx.lineTo(x + 26, y + 28);
+  ctx.stroke();
+
+  // Cou
+  ctx.strokeStyle = "#3b2f2f";
+  ctx.beginPath();
+  ctx.moveTo(x + 15, y + 19);
   ctx.lineTo(x + 15, y + 32);
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.moveTo(x + 15, y + 20);
-  ctx.lineTo(x + 5, y + 28);
-  ctx.moveTo(x + 15, y + 20);
-  ctx.lineTo(x + 25, y + 28);
-  ctx.stroke();
-
+  // Jambes
+  ctx.strokeStyle = "#8b5a2b";
+  ctx.lineWidth = 4;
   ctx.beginPath();
   if (!joueur.surLeSol) {
     ctx.moveTo(x + 15, y + 32);
@@ -181,7 +203,7 @@ function dessinerJoueur() {
 
 // ---------- OBSTACLES ----------
 function planifierProchainObstacle() {
-  prochainObstacle = compteur + 60 + Math.random() * 90;
+  prochainObstacle = compteur + 50 + Math.random() * 170;
 }
 
 function creerObstacle() {
@@ -239,6 +261,7 @@ function verifierCollision() {
 function terminerJeu() {
   arreterMusique();
   jouerPet();
+  jouerMusiqueFin();
   boutonRejouer.style.display = "block";
 }
 
@@ -258,77 +281,3 @@ function dessinerGameOver() {
 }
 
 // ---------- BOUCLE PRINCIPALE ----------
-function resetJeu() {
-  boutonRejouer.style.display = "none";
-  joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
-  obstacles = [];
-  score = 0;
-  jeuTermine = false;
-  compteur = 0;
-  planifierProchainObstacle();
-  initNuages();
-  demarrerMusique();
-  boucle();
-}
-
-function maj() {
-  joueur.vitesseY += gravite;
-  joueur.y += joueur.vitesseY;
-
-  if (joueur.y >= SOL_Y - joueur.hauteur) {
-    joueur.y = SOL_Y - joueur.hauteur;
-    joueur.vitesseY = 0;
-    joueur.surLeSol = true;
-  } else {
-    joueur.surLeSol = false;
-  }
-
-  compteur++;
-  if (compteur >= prochainObstacle) {
-    creerObstacle();
-    planifierProchainObstacle();
-  }
-
-  deplacerObstacles();
-  deplacerNuages();
-  verifierCollision();
-
-  if (!jeuTermine) score++;
-}
-
-function boucle() {
-  dessinerFond();
-
-  if (jeuTermine) {
-    dessinerSol();
-    dessinerObstacles();
-    dessinerJoueur();
-    dessinerGameOver();
-    return;
-  }
-
-  maj();
-  dessinerSol();
-  dessinerObstacles();
-  dessinerJoueur();
-  dessinerScore();
-
-  requestAnimationFrame(boucle);
-}
-
-function sauter() {
-  initAudio();
-  if (!jeuTermine && joueur.surLeSol) {
-    joueur.vitesseY = -15;
-  }
-}
-
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") sauter();
-});
-
-canvas.addEventListener("touchstart", sauter);
-canvas.addEventListener("click", sauter);
-boutonRejouer.addEventListener("click", resetJeu);
-
-resetJeu();
