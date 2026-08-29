@@ -619,7 +619,6 @@ function pointsActuels() {
   return Math.floor(score / 10) + bonusPoints;
 }
 
-// Points liés uniquement au temps écoulé, indépendants des bonus, pour le cycle jour/nuit
 function pointsTemps() {
   return Math.floor(score / 10);
 }
@@ -786,6 +785,13 @@ function maj() {
   joueur.vitesseY += gravite;
   joueur.y += joueur.vitesseY;
 
+  // Empêche de dépasser le haut du cadre (tient compte du plus grand des deux personnages)
+  const limiteHaute = 0 - (hauteurMaxDuo() - joueur.hauteur);
+  if (joueur.y < limiteHaute) {
+    joueur.y = limiteHaute;
+    if (joueur.vitesseY < 0) joueur.vitesseY = 0;
+  }
+
   if (joueur.y >= SOL_Y - joueur.hauteur) {
     joueur.y = SOL_Y - joueur.hauteur;
     joueur.vitesseY = 0;
@@ -847,7 +853,6 @@ function boucle() {
   requestAnimationFrame(boucle);
 }
 
-// Sauts illimités, y compris en l'air
 function sauter() {
   initAudio();
   if (jeuTermine) return;
