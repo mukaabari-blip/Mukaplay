@@ -30,6 +30,14 @@ let particulesExplosion = [];
 let flashExplosion = 0;
 let dragons;
 let prochainPalierDragon = 400;
+let montagnes;
+
+// Pouvoir "dragon" : géant, invincible, ailes
+let joueurGeant = false;
+let joueurGeantFin = 0;
+let joueurInvincible = false;
+let joueurAiles = false;
+let clignoteFin = 0;
 
 // ---------- PLEIN ÉCRAN RESPONSIVE ----------
 function redimensionner() {
@@ -136,7 +144,7 @@ function jouerSonExplosion() {
 function jouerSonFeu() {
   initAudio();
 
-  const bufferSize = audioCtx.sampleRate * 0.75;
+  const bufferSize = audioCtx.sampleRate * 0.7;
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
@@ -148,9 +156,9 @@ function jouerSonFeu() {
   const filtre = audioCtx.createBiquadFilter();
   filtre.type = "lowpass";
   filtre.frequency.setValueAtTime(1800, audioCtx.currentTime);
-  filtre.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.75);
+  filtre.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.7);
   const gainBruit = audioCtx.createGain();
-  gainBruit.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gainBruit.gain.setValueAtTime(0.22, audioCtx.currentTime);
   bruit.connect(filtre);
   filtre.connect(gainBruit);
   gainBruit.connect(audioCtx.destination);
@@ -161,7 +169,7 @@ function jouerSonFeu() {
   rugissement.type = "sawtooth";
   rugissement.frequency.setValueAtTime(90, audioCtx.currentTime);
   rugissement.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.5);
-  gainRugissement.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  gainRugissement.gain.setValueAtTime(0.14, audioCtx.currentTime);
   gainRugissement.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
   rugissement.connect(gainRugissement);
   gainRugissement.connect(audioCtx.destination);
@@ -173,6 +181,14 @@ function jouerSonPalier() {
   initAudio();
   jouerNote(880, 0.15, "sine", 0.1);
   setTimeout(() => jouerNote(1174.66, 0.2, "sine", 0.1), 100);
+}
+
+function jouerSonPouvoir() {
+  initAudio();
+  const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+  notes.forEach((f, i) => {
+    setTimeout(() => jouerNote(f, 0.15, "triangle", 0.12), i * 80);
+  });
 }
 
 function jouerFanfareVictoire() {
@@ -209,11 +225,25 @@ function jouerSonBonus() {
   }
 }
 
-// ---------- DÉCOR ----------
+// ---------- DÉCOR (arrière-plan amélioré) ----------
 function initDecor() {
   nuages = [];
-  for (let i = 0; i < 4; i++) {
-    nuages.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * (canvas.height * 0.18) });
+  for (let i = 0; i < 5; i++) {
+    nuages.push({
+      x: Math.random() * canvas.width,
+      y: 30 + Math.random() * (canvas.height * 0.22),
+      taille: 0.7 + Math.random() * 0.9,
+      vitesse: 0.2 + Math.random() * 0.4
+    });
+  }
+  montagnes = [];
+  for (let i = 0; i < 6; i++) {
+    montagnes.push({
+      x: i * (canvas.width / 3) + Math.random() * 100,
+      largeur: 180 + Math.random() * 200,
+      hauteur: 70 + Math.random() * 150,
+      teinteClaire: Math.random() > 0.5
+    });
   }
   etoiles = [];
   for (let i = 0; i < 80; i++) {
@@ -235,8 +265,20 @@ function initDecor() {
 
 function deplacerNuages() {
   nuages.forEach(n => {
-    n.x -= 0.4;
-    if (n.x < -50) n.x = canvas.width + 50;
+    n.x -= n.vitesse;
+    if (n.x < -80) n.x = canvas.width + 80;
+  });
+}
+
+function deplacerMontagnes() {
+  montagnes.forEach(m => {
+    m.x -= 0.18;
+    if (m.x < -m.largeur) {
+      m.x = canvas.width + Math.random() * 150;
+      m.largeur = 180 + Math.random() * 200;
+      m.hauteur = 70 + Math.random() * 150;
+      m.teinteClaire = Math.random() > 0.5;
+    }
   });
 }
 
@@ -252,6 +294,13 @@ function dessinerAstres(points) {
   const y = canvas.height * 0.18 - Math.sin(local * Math.PI) * (canvas.height * 0.12);
 
   if (estJour) {
+    const glow = ctx.createRadialGradient(x, y, 5, x, y, 55);
+    glow.addColorStop(0, "rgba(255,235,150,0.55)");
+    glow.addColorStop(1, "rgba(255,235,150,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, 55, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "#ffe066";
     ctx.beginPath();
     ctx.arc(x, y, 26, 0, Math.PI * 2);
@@ -269,20 +318,79 @@ function dessinerAstres(points) {
   }
 }
 
+function dessinerMontagnes() {
+  montagnes.forEach(m => {
+    const base1 = m.teinteClaire ? "#8a9bb0" : "#6d7f96";
+    const base2 = m.teinteClaire ? "#5c6d82" : "#465468";
+    const grad = ctx.createLinearGradient(0, SOL_Y - m.hauteur, 0, SOL_Y);
+    grad.addColorStop(0, base1);
+    grad.addColorStop(1, base2);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(m.x, SOL_Y);
+    ctx.lineTo(m.x + m.largeur * 0.35, SOL_Y - m.hauteur * 0.7);
+    ctx.lineTo(m.x + m.largeur * 0.5, SOL_Y - m.hauteur);
+    ctx.lineTo(m.x + m.largeur * 0.65, SOL_Y - m.hauteur * 0.75);
+    ctx.lineTo(m.x + m.largeur, SOL_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Neige au sommet
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.moveTo(m.x + m.largeur * 0.5, SOL_Y - m.hauteur);
+    ctx.lineTo(m.x + m.largeur * 0.42, SOL_Y - m.hauteur * 0.82);
+    ctx.lineTo(m.x + m.largeur * 0.5, SOL_Y - m.hauteur * 0.86);
+    ctx.lineTo(m.x + m.largeur * 0.58, SOL_Y - m.hauteur * 0.82);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+function dessinerNuageRealiste(n) {
+  ctx.save();
+  ctx.translate(n.x, n.y);
+  ctx.scale(n.taille, n.taille);
+  const blobs = [
+    [0, 0, 24], [22, -8, 20], [42, 0, 22], [-20, -4, 18], [12, 8, 20], [30, 8, 16]
+  ];
+  blobs.forEach(([dx, dy, r]) => {
+    const grad = ctx.createRadialGradient(dx, dy, 2, dx, dy, r);
+    grad.addColorStop(0, "rgba(255,255,255,0.95)");
+    grad.addColorStop(0.7, "rgba(255,255,255,0.8)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(dx, dy, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  // Ombre légère dessous pour le volume
+  ctx.fillStyle = "rgba(150,160,180,0.25)";
+  ctx.beginPath();
+  ctx.ellipse(15, 10, 30, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function dessinerFond(points) {
   const luminosite = calculerLuminosite(points);
   luminositeGlobale = luminosite;
 
   const degrade = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  degrade.addColorStop(0, "#87CEEB");
+  degrade.addColorStop(0, "#6fb8e6");
+  degrade.addColorStop(0.6, "#a9dcef");
   degrade.addColorStop(1, "#e0f7fa");
   ctx.fillStyle = degrade;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   dessinerAstres(points);
+  dessinerMontagnes();
 
   const w = canvas.width;
-  ctx.fillStyle = "#a3d9a5";
+  const gradColline = ctx.createLinearGradient(0, SOL_Y - 70, 0, SOL_Y);
+  gradColline.addColorStop(0, "#8fc26e");
+  gradColline.addColorStop(1, "#6b9e4a");
+  ctx.fillStyle = gradColline;
   ctx.beginPath();
   ctx.moveTo(0, SOL_Y);
   ctx.quadraticCurveTo(w * 0.19, SOL_Y - 60, w * 0.375, SOL_Y);
@@ -292,14 +400,7 @@ function dessinerFond(points) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  nuages.forEach(n => {
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 15, 0, Math.PI * 2);
-    ctx.arc(n.x + 15, n.y - 5, 18, 0, Math.PI * 2);
-    ctx.arc(n.x + 30, n.y, 15, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  nuages.forEach(dessinerNuageRealiste);
 
   const nuit = 1 - luminosite;
   if (nuit > 0.02) {
@@ -315,11 +416,40 @@ function dessinerFond(points) {
   }
 }
 
+// Sol façon gazon détaillé
 function dessinerSol() {
-  ctx.fillStyle = "#6b8e23";
+  const gradSol = ctx.createLinearGradient(0, SOL_Y, 0, canvas.height);
+  gradSol.addColorStop(0, "#7cb342");
+  gradSol.addColorStop(1, "#3f5c1a");
+  ctx.fillStyle = gradSol;
   ctx.fillRect(0, SOL_Y, canvas.width, canvas.height - SOL_Y);
-  ctx.fillStyle = "#4a6b1f";
-  ctx.fillRect(0, SOL_Y, canvas.width, 6);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1;
+  for (let y = SOL_Y + 10; y < canvas.height; y += 14) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+
+  // Touffes d'herbe le long de la ligne de sol
+  ctx.strokeStyle = "#4f7a25";
+  ctx.lineWidth = 2;
+  for (let x = -((compteur * (vitesseDefilement || 1)) % 10); x < canvas.width; x += 9) {
+    const h = 5 + Math.abs(Math.sin(x * 0.5 + compteur * 0.05)) * 5;
+    ctx.beginPath();
+    ctx.moveTo(x, SOL_Y);
+    ctx.lineTo(x - 2, SOL_Y - h);
+    ctx.moveTo(x, SOL_Y);
+    ctx.lineTo(x, SOL_Y - h * 1.1);
+    ctx.moveTo(x, SOL_Y);
+    ctx.lineTo(x + 2, SOL_Y - h * 0.8);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#365214";
+  ctx.fillRect(0, SOL_Y, canvas.width, 3);
 }
 
 function dessinerHalo(x, y, rayon) {
@@ -437,19 +567,65 @@ function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
   ctx.stroke();
 }
 
-function largeurTotaleDuo() { return 26 + 42 * 1.4; }
-function hauteurMaxDuo() { return 44 * 1.4; }
+function dessinerAiles(x, pieds, mult) {
+  const y = pieds - 32 * mult;
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.strokeStyle = "rgba(220,220,255,0.9)";
+  ctx.lineWidth = 1.5;
+  // Aile gauche
+  ctx.beginPath();
+  ctx.moveTo(x - 3 * mult, y);
+  ctx.quadraticCurveTo(x - 38 * mult, y - 26 * mult, x - 52 * mult, y + 8 * mult);
+  ctx.quadraticCurveTo(x - 28 * mult, y + 14 * mult, x - 3 * mult, y + 8 * mult);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Aile droite
+  ctx.beginPath();
+  ctx.moveTo(x + 58 * mult, y);
+  ctx.quadraticCurveTo(x + 92 * mult, y - 26 * mult, x + 106 * mult, y + 8 * mult);
+  ctx.quadraticCurveTo(x + 82 * mult, y + 14 * mult, x + 58 * mult, y + 8 * mult);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function multiplicateurGeant() { return joueurGeant ? 2.6 : 1; }
+function largeurTotaleDuo() { return (26 + 42 * 1.4) * multiplicateurGeant(); }
+function hauteurMaxDuo() { return (44 * 1.4) * multiplicateurGeant(); }
 
 function dessinerJoueur() {
   const pieds = joueur.y + joueur.hauteur;
+  const mult = multiplicateurGeant();
 
   const enScintillement = compteur < scintillementFin;
   if (enScintillement && Math.floor(compteur / 4) % 2 === 0) {
     return;
   }
 
-  dessinerPersonnage(joueur.x, pieds, 1, "#3b82f6");
-  dessinerPersonnage(joueur.x + 26, pieds, 1.4, "#ef4444");
+  if (joueurGeant) {
+    const cx = joueur.x + 40 * mult;
+    const cy = pieds - 40 * mult;
+    const halo = ctx.createRadialGradient(cx, cy, 5, cx, cy, 95 * mult / 2);
+    halo.addColorStop(0, "rgba(255,225,120,0.55)");
+    halo.addColorStop(1, "rgba(255,225,120,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 95 * mult / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const enClignote = joueurGeant && compteur < clignoteFin;
+  if (enClignote && Math.floor(compteur / 4) % 2 === 0) {
+    return;
+  }
+
+  if (joueurAiles) {
+    dessinerAiles(joueur.x, pieds, mult);
+  }
+
+  dessinerPersonnage(joueur.x, pieds, 1 * mult, "#3b82f6");
+  dessinerPersonnage(joueur.x + 26 * mult, pieds, 1.4 * mult, "#ef4444");
 }
 
 // ---------- OBSTACLES ----------
@@ -476,15 +652,23 @@ function creerObstacle() {
 }
 
 function dessinerZombie(x, taille, decalage, geant) {
-  const balancement = Math.sin((compteur + decalage) / 8) * (geant ? 5 : 3);
+  const balancement = Math.sin((compteur + decalage) / 8) * (geant ? 6 : 3);
   const hautZ = SOL_Y - taille;
-  const couleurPeau = geant ? "#3d5a35" : "#6b9457";
-  const couleurVetement = geant ? "#2b2b2b" : "#4a4a4a";
+  const nuit = 1 - luminositeGlobale;
 
-  dessinerHalo(x, hautZ + taille * 0.5, taille * 0.9);
+  dessinerHalo(x, hautZ + taille * 0.5, taille * (geant ? 1.1 : 0.9));
 
-  ctx.strokeStyle = "#2a2a2a";
-  ctx.lineWidth = taille * 0.14;
+  const couleurPeauClaire = geant ? "#5a7a48" : "#84a86c";
+  const couleurPeauFoncee = geant ? "#2c3d24" : "#4c6b3a";
+  const couleurVetement = geant ? "#1c1c1c" : "#3d3d3d";
+
+  const gradPeau = ctx.createLinearGradient(x - taille / 3, hautZ, x + taille / 3, hautZ + taille);
+  gradPeau.addColorStop(0, couleurPeauClaire);
+  gradPeau.addColorStop(1, couleurPeauFoncee);
+
+  // Jambes
+  ctx.strokeStyle = "#1a1a1a";
+  ctx.lineWidth = taille * 0.15;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(x - taille / 5, hautZ + taille * 0.85);
@@ -493,44 +677,99 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.lineTo(x + taille / 5, SOL_Y);
   ctx.stroke();
 
+  // Torse déchiré
   ctx.fillStyle = couleurVetement;
   ctx.fillRect(x - taille / 3, hautZ + taille * 0.32, taille / 1.5, taille * 0.55);
-  ctx.fillStyle = couleurPeau;
+  ctx.fillStyle = gradPeau;
   ctx.beginPath();
   ctx.moveTo(x - taille * 0.15, hautZ + taille * 0.5);
   ctx.lineTo(x - taille * 0.05, hautZ + taille * 0.62);
   ctx.lineTo(x - taille * 0.2, hautZ + taille * 0.7);
   ctx.closePath();
   ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + taille * 0.05, hautZ + taille * 0.5);
+  ctx.lineTo(x + taille * 0.18, hautZ + taille * 0.65);
+  ctx.lineTo(x + taille * 0.02, hautZ + taille * 0.72);
+  ctx.closePath();
+  ctx.fill();
 
-  ctx.strokeStyle = couleurPeau;
-  ctx.lineWidth = taille * 0.1;
+  // Côtes visibles (géant seulement)
+  if (geant) {
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x - taille * 0.12, hautZ + taille * (0.4 + i * 0.06));
+      ctx.lineTo(x + taille * 0.1, hautZ + taille * (0.4 + i * 0.06));
+      ctx.stroke();
+    }
+  }
+
+  // Bras
+  ctx.strokeStyle = gradPeau;
+  ctx.lineWidth = taille * (geant ? 0.13 : 0.1);
   ctx.beginPath();
   ctx.moveTo(x - taille / 3, hautZ + taille * 0.42);
   ctx.lineTo(x - taille / 2 - balancement, hautZ + taille * 0.25);
   ctx.moveTo(x + taille / 3, hautZ + taille * 0.42);
   ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.25);
   ctx.stroke();
+  // Griffes
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 2;
+  [-1, 1].forEach(sens => {
+    const bx = sens < 0 ? x - taille / 2 - balancement : x + taille / 2 + balancement;
+    const by = hautZ + taille * 0.25;
+    for (let g = -1; g <= 1; g++) {
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + g * 3, by - 7);
+      ctx.stroke();
+    }
+  });
 
-  ctx.fillStyle = couleurPeau;
+  // Tête
+  ctx.fillStyle = gradPeau;
   ctx.beginPath();
   ctx.arc(x, hautZ + taille * 0.16, taille * 0.19, 0, Math.PI * 2);
   ctx.fill();
 
+  // Yeux rouges lumineux
+  const halov = ctx.createRadialGradient(x, hautZ + taille * 0.15, 1, x, hautZ + taille * 0.15, taille * 0.12);
+  halov.addColorStop(0, "rgba(255,60,40,0.8)");
+  halov.addColorStop(1, "rgba(255,60,40,0)");
+  ctx.fillStyle = halov;
+  ctx.beginPath();
+  ctx.arc(x, hautZ + taille * 0.15, taille * 0.12, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = "#ff3b30";
   ctx.beginPath();
-  ctx.arc(x - taille * 0.06, hautZ + taille * 0.13, taille * 0.035, 0, Math.PI * 2);
-  ctx.arc(x + taille * 0.08, hautZ + taille * 0.18, taille * 0.035, 0, Math.PI * 2);
+  ctx.arc(x - taille * 0.06, hautZ + taille * 0.13, taille * 0.04, 0, Math.PI * 2);
+  ctx.arc(x + taille * 0.08, hautZ + taille * 0.18, taille * 0.04, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = "#1a1a1a";
+  // Bouche / mâchoire
+  ctx.strokeStyle = "#0a0a0a";
   ctx.lineWidth = taille * 0.02;
   ctx.beginPath();
-  ctx.arc(x + taille * 0.01, hautZ + taille * 0.22, taille * 0.05, 0, Math.PI);
+  ctx.arc(x + taille * 0.01, hautZ + taille * 0.22, taille * 0.06, 0.1, Math.PI - 0.1);
   ctx.stroke();
+  if (geant) {
+    ctx.fillStyle = "#e8e8d8";
+    for (let d = -1; d <= 1; d += 2) {
+      ctx.beginPath();
+      ctx.moveTo(x + d * taille * 0.04, hautZ + taille * 0.24);
+      ctx.lineTo(x + d * taille * 0.055, hautZ + taille * 0.3);
+      ctx.lineTo(x + d * taille * 0.02, hautZ + taille * 0.24);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
 
   if (geant) {
-    ctx.fillStyle = "#1a1a1a";
+    // Couronne d'épines
+    ctx.fillStyle = "#111";
     for (let i = -2; i <= 2; i++) {
       ctx.beginPath();
       ctx.moveTo(x + i * taille * 0.06, hautZ - taille * 0.02);
@@ -539,34 +778,94 @@ function dessinerZombie(x, taille, decalage, geant) {
       ctx.closePath();
       ctx.fill();
     }
+    // Aura menaçante
+    ctx.strokeStyle = `rgba(120,0,0,${0.3 + 0.2 * Math.sin(compteur / 10)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, hautZ + taille * 0.45, taille * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
   }
+}
+
+function dessinerRocher(o) {
+  dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
+  const cy = SOL_Y - o.taille / 2;
+  const grad = ctx.createRadialGradient(o.x - o.taille * 0.15, cy - o.taille * 0.15, 2, o.x, cy, o.taille * 0.6);
+  grad.addColorStop(0, "#9c8b76");
+  grad.addColorStop(1, "#5c4f3f");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(o.x, cy, o.taille / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(o.x - o.taille * 0.15, cy - o.taille * 0.1);
+  ctx.lineTo(o.x + o.taille * 0.05, cy + o.taille * 0.15);
+  ctx.moveTo(o.x + o.taille * 0.1, cy - o.taille * 0.2);
+  ctx.lineTo(o.x + o.taille * 0.15, cy);
+  ctx.stroke();
+}
+
+function dessinerPic(o) {
+  dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
+  const grad = ctx.createLinearGradient(o.x - o.taille / 2, SOL_Y, o.x + o.taille / 2, SOL_Y - o.taille);
+  grad.addColorStop(0, "#3a3a3a");
+  grad.addColorStop(0.5, "#6f6f6f");
+  grad.addColorStop(1, "#3a3a3a");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(o.x - o.taille / 2, SOL_Y);
+  ctx.lineTo(o.x, SOL_Y - o.taille);
+  ctx.lineTo(o.x + o.taille / 2, SOL_Y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(o.x, SOL_Y - o.taille);
+  ctx.lineTo(o.x - o.taille * 0.12, SOL_Y - o.taille * 0.3);
+  ctx.stroke();
+}
+
+function dessinerCaisse(o) {
+  dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
+  const gx = o.x - o.taille / 2;
+  const gy = SOL_Y - o.taille;
+  const grad = ctx.createLinearGradient(gx, gy, gx, SOL_Y);
+  grad.addColorStop(0, "#a9743f");
+  grad.addColorStop(1, "#6b4423");
+  ctx.fillStyle = grad;
+  ctx.fillRect(gx, gy, o.taille, o.taille);
+  ctx.strokeStyle = "#4a2e14";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(gx + 2, gy + 2, o.taille - 4, o.taille - 4);
+  ctx.beginPath();
+  ctx.moveTo(gx, gy);
+  ctx.lineTo(gx + o.taille, gy + o.taille);
+  ctx.moveTo(gx + o.taille, gy);
+  ctx.lineTo(gx, gy + o.taille);
+  ctx.stroke();
+  // Coins métalliques
+  ctx.fillStyle = "#c9c9c9";
+  const c = o.taille * 0.14;
+  [[gx, gy], [gx + o.taille - c, gy], [gx, gy + o.taille - c], [gx + o.taille - c, gy + o.taille - c]].forEach(([px, py]) => {
+    ctx.fillRect(px, py, c, c);
+  });
 }
 
 function dessinerObstacles() {
   obstacles.forEach(o => {
     if (o.type === "rocher") {
-      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
-      ctx.fillStyle = "#7a6a58";
-      ctx.beginPath();
-      ctx.arc(o.x, SOL_Y - o.taille / 2, o.taille / 2, 0, Math.PI * 2);
-      ctx.fill();
+      dessinerRocher(o);
     } else if (o.type === "pic") {
-      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
-      ctx.fillStyle = "#5a5a5a";
-      ctx.beginPath();
-      ctx.moveTo(o.x - o.taille / 2, SOL_Y);
-      ctx.lineTo(o.x, SOL_Y - o.taille);
-      ctx.lineTo(o.x + o.taille / 2, SOL_Y);
-      ctx.closePath();
-      ctx.fill();
+      dessinerPic(o);
     } else if (o.type === "zombie") {
       dessinerZombie(o.x, o.taille, o.decalage, false);
     } else if (o.type === "zombieGeant") {
       dessinerZombie(o.x, o.taille, o.decalage, true);
     } else {
-      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
-      ctx.fillStyle = "#8b5a2b";
-      ctx.fillRect(o.x - o.taille / 2, SOL_Y - o.taille, o.taille, o.taille);
+      dessinerCaisse(o);
     }
   });
 }
@@ -577,6 +876,7 @@ function deplacerObstacles() {
 }
 
 function verifierCollision() {
+  if (joueurInvincible) return;
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
   const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
@@ -603,7 +903,7 @@ function verifierCollision() {
   });
 }
 
-// ---------- OISEAUX (obstacles aériens, dont géants) ----------
+// ---------- OISEAUX ----------
 function planifierProchainOiseau() {
   prochainOiseau = compteur + 110 + Math.random() * 220;
 }
@@ -625,25 +925,40 @@ function dessinerOiseaux() {
     dessinerHalo(o.x, o.y, o.envergure * 0.9);
 
     const battement = Math.sin((compteur + o.decalage) / (o.geant ? 8 : 5)) * (o.geant ? 16 : 10);
-    const couleurCorps = o.geant ? "#7a3b1f" : "#4a5b6e";
-    const couleurAile = o.geant ? "#5c2c15" : "#2c3a47";
+    const couleurClaire = o.geant ? "#a05a30" : "#6c85a0";
+    const couleurFoncee = o.geant ? "#5c2c15" : "#2c3a47";
 
-    ctx.fillStyle = couleurCorps;
+    const gradCorps = ctx.createLinearGradient(o.x, o.y - o.envergure * 0.16, o.x, o.y + o.envergure * 0.16);
+    gradCorps.addColorStop(0, couleurClaire);
+    gradCorps.addColorStop(1, couleurFoncee);
+
+    // Aile arrière
+    ctx.fillStyle = couleurFoncee;
+    ctx.beginPath();
+    ctx.moveTo(o.x - o.envergure * 0.05, o.y);
+    ctx.quadraticCurveTo(o.x - o.envergure * 0.3, o.y - o.envergure * 0.3 + battement * 0.5, o.x - o.envergure * 0.5, o.y + battement);
+    ctx.quadraticCurveTo(o.x - o.envergure * 0.25, o.y + o.envergure * 0.08, o.x - o.envergure * 0.05, o.y + o.envergure * 0.05);
+    ctx.closePath();
+    ctx.fill();
+
+    // Corps
+    ctx.fillStyle = gradCorps;
     ctx.beginPath();
     ctx.ellipse(o.x, o.y, o.envergure * 0.28, o.envergure * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = couleurAile;
-    ctx.lineWidth = o.geant ? 5 : 3.5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
-    ctx.quadraticCurveTo(o.x - o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
-    ctx.moveTo(o.x + o.envergure / 2, o.y + battement);
-    ctx.quadraticCurveTo(o.x + o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
-    ctx.stroke();
+    // Plumes du corps (traits)
+    ctx.strokeStyle = "rgba(0,0,0,0.2)";
+    ctx.lineWidth = 1;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(o.x - o.envergure * 0.1, o.y + i * o.envergure * 0.05);
+      ctx.lineTo(o.x + o.envergure * 0.15, o.y + i * o.envergure * 0.05);
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = couleurCorps;
+    // Tête
+    ctx.fillStyle = couleurClaire;
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.22, o.y - o.envergure * 0.06, o.envergure * 0.13, 0, Math.PI * 2);
     ctx.fill();
@@ -659,6 +974,15 @@ function dessinerOiseaux() {
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, o.geant ? 3 : 1.6, 0, Math.PI * 2);
     ctx.fill();
+
+    // Aile avant
+    ctx.strokeStyle = couleurFoncee;
+    ctx.lineWidth = o.geant ? 5 : 3.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
+    ctx.quadraticCurveTo(o.x - o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
+    ctx.stroke();
   });
 }
 
@@ -694,7 +1018,7 @@ function verifierCollisionOiseaux() {
         sautsRestants = 2;
         bonusPoints += o.geant ? 400 : 300;
         jouerSonBonus();
-      } else {
+      } else if (!joueurInvincible) {
         jeuTermine = true;
         victoire = false;
         terminerJeu();
@@ -739,6 +1063,7 @@ function deplacerEtDessinerPassages() {
 }
 
 function verifierCollisionPassages() {
+  if (joueurInvincible) return;
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
   const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
@@ -774,9 +1099,7 @@ function creerDragon() {
     y: SOL_Y - hauteurVol,
     envergure: 260,
     decalage: Math.random() * 100,
-    prochainSouffle: 60 + Math.random() * 60,
-    souffleActif: false,
-    souffleTempsRestant: 0,
+    prochainSon: 0,
     flammes: []
   });
 }
@@ -894,70 +1217,50 @@ function dessinerDragon(d) {
   ctx.closePath();
   ctx.fill();
 
-  if (d.souffleActif) {
-    d.flammes.forEach(f => {
-      const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.taille);
-      grad.addColorStop(0, "rgba(255,255,180,0.9)");
-      grad.addColorStop(0.5, "rgba(255,140,0,0.8)");
-      grad.addColorStop(1, "rgba(200,30,0,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.taille, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
+  // Feu continu
+  d.flammes.forEach(f => {
+    const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.taille);
+    grad.addColorStop(0, "rgba(255,255,180,0.9)");
+    grad.addColorStop(0.5, "rgba(255,140,0,0.8)");
+    grad.addColorStop(1, "rgba(200,30,0,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.taille, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 function majDragon(d) {
   d.x -= vitesseDefilement * 0.9;
 
-  d.prochainSouffle--;
-  if (d.prochainSouffle <= 0 && !d.souffleActif) {
-    d.souffleActif = true;
-    d.souffleTempsRestant = 45;
+  d.prochainSon--;
+  if (d.prochainSon <= 0) {
     jouerSonFeu();
+    d.prochainSon = 95;
   }
 
-  if (d.souffleActif) {
-    const origineX = d.x - d.envergure * 0.6;
-    const origineY = d.y;
+  const origineX = d.x - d.envergure * 0.6;
+  const origineY = d.y;
 
-    for (let i = 0; i < 3; i++) {
-      d.flammes.push({
-        x: origineX + (Math.random() * 10 - 5),
-        y: origineY,
-        vx: -(1 + Math.random() * 1.5),
-        vy: 2 + Math.random() * 1.5,
-        taille: 9 + Math.random() * 9,
-        vie: 70
-      });
-    }
-    d.flammes.forEach(f => {
-      f.x += f.vx;
-      f.y += f.vy;
-      f.vy += 0.35;
-      if (f.y >= SOL_Y) f.y = SOL_Y;
-      f.vie--;
-      f.taille *= 0.985;
+  for (let i = 0; i < 3; i++) {
+    d.flammes.push({
+      x: origineX + (Math.random() * 10 - 5),
+      y: origineY,
+      vx: -(1 + Math.random() * 1.5),
+      vy: 2 + Math.random() * 1.5,
+      taille: 9 + Math.random() * 9,
+      vie: 70
     });
-    d.flammes = d.flammes.filter(f => f.vie > 0);
-
-    d.souffleTempsRestant--;
-    if (d.souffleTempsRestant <= 0) {
-      d.souffleActif = false;
-      d.prochainSouffle = 120 + Math.random() * 100;
-    }
-  } else {
-    d.flammes.forEach(f => {
-      f.x += f.vx;
-      f.y += f.vy;
-      f.vy += 0.35;
-      if (f.y >= SOL_Y) f.y = SOL_Y;
-      f.vie--;
-      f.taille *= 0.985;
-    });
-    d.flammes = d.flammes.filter(f => f.vie > 0);
   }
+  d.flammes.forEach(f => {
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vy += 0.35;
+    if (f.y >= SOL_Y) f.y = SOL_Y;
+    f.vie--;
+    f.taille *= 0.985;
+  });
+  d.flammes = d.flammes.filter(f => f.vie > 0);
 }
 
 function deplacerEtDessinerDragons() {
@@ -966,6 +1269,17 @@ function deplacerEtDessinerDragons() {
     dessinerDragon(d);
   });
   dragons = dragons.filter(d => d.x + d.envergure > -150);
+}
+
+function activerPouvoirDragon() {
+  joueurGeant = true;
+  joueurGeantFin = compteur + 600;
+  joueurInvincible = true;
+  joueurAiles = true;
+  clignoteFin = compteur + 120;
+  joueur.vitesseY = -16;
+  sautsRestants = 2;
+  jouerSonPouvoir();
 }
 
 function verifierCollisionDragons() {
@@ -982,29 +1296,35 @@ function verifierCollisionDragons() {
     const hautD = d.y - d.envergure * 0.18;
     const basD = d.y + d.envergure * 0.18;
 
-    if (
-      !jeuTermine &&
-      gaucheJ < droiteD && droiteJ > gaucheD &&
-      hautJ < basD && piedsJ > hautD
-    ) {
-      jeuTermine = true;
-      victoire = false;
-      terminerJeu();
-    }
+    const chevaucheX = gaucheJ < droiteD && droiteJ > gaucheD;
+    const chevaucheY = hautJ < basD && piedsJ > hautD;
 
-    d.flammes.forEach(f => {
-      if (
-        !jeuTermine &&
-        gaucheJ < f.x + f.taille &&
-        droiteJ > f.x - f.taille &&
-        hautJ < f.y + f.taille &&
-        piedsJ > f.y - f.taille
-      ) {
+    if (!jeuTermine && chevaucheX && chevaucheY) {
+      const surLeDos = joueur.vitesseY > 0 && (piedsJ - hautD) < 35;
+      if (surLeDos && !joueurGeant) {
+        activerPouvoirDragon();
+      } else if (!joueurInvincible) {
         jeuTermine = true;
         victoire = false;
         terminerJeu();
       }
-    });
+    }
+
+    if (!joueurInvincible) {
+      d.flammes.forEach(f => {
+        if (
+          !jeuTermine &&
+          gaucheJ < f.x + f.taille &&
+          droiteJ > f.x - f.taille &&
+          hautJ < f.y + f.taille &&
+          piedsJ > f.y - f.taille
+        ) {
+          jeuTermine = true;
+          victoire = false;
+          terminerJeu();
+        }
+      });
+    }
   });
 }
 
@@ -1193,6 +1513,13 @@ function dessinerScore() {
   const tempsFormate = minutes + ":" + (secondes < 10 ? "0" : "") + secondes;
   ctx.font = "16px Arial";
   ctx.fillText("Temps: " + tempsFormate, 20, 52);
+
+  if (joueurGeant) {
+    const secRestantes = Math.max(0, Math.ceil((joueurGeantFin - compteur) / 60));
+    ctx.fillStyle = "#b8860b";
+    ctx.font = "16px Arial";
+    ctx.fillText("Pouvoir dragon: " + secRestantes + "s", 20, 74);
+  }
 }
 
 // ---------- BOUCLE PRINCIPALE ----------
@@ -1220,6 +1547,11 @@ function resetJeu() {
   dernierSpawnCompteur = -9999;
   particulesExplosion = [];
   flashExplosion = 0;
+  joueurGeant = false;
+  joueurGeantFin = 0;
+  joueurInvincible = false;
+  joueurAiles = false;
+  clignoteFin = 0;
   planifierProchainObstacle();
   planifierProchainOiseau();
   planifierProchainPassage();
@@ -1245,6 +1577,12 @@ function maj() {
     sautsRestants = 2;
   } else {
     joueur.surLeSol = false;
+  }
+
+  if (joueurGeant && compteur >= joueurGeantFin) {
+    joueurGeant = false;
+    joueurInvincible = false;
+    joueurAiles = false;
   }
 
   compteur++;
@@ -1278,6 +1616,7 @@ function maj() {
   deplacerObstacles();
   deplacerOiseaux();
   deplacerNuages();
+  deplacerMontagnes();
   verifierCollision();
   verifierCollisionOiseaux();
   verifierCollisionPassages();
