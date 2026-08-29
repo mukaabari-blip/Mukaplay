@@ -7,7 +7,7 @@ const gravite = 0.8;
 const SOL_Y = 340;
 const POINTS_VICTOIRE = 5000;
 const VITESSE_BASE = 6;
-const ESPACEMENT_MIN = 55; // frames minimum entre deux dangers (sol ou air)
+const ESPACEMENT_MIN = 55;
 
 let joueur, obstacles, score, bonusPoints, jeuTermine, victoire, compteur, nuages, prochainObstacle;
 let vitesseDefilement = VITESSE_BASE;
@@ -104,7 +104,6 @@ function jouerFanfareVictoire() {
   });
 }
 
-// Son de pièce gagnée + applaudissements, joué en cas de rebond sur un oiseau
 function jouerSonBonus() {
   initAudio();
   const notesPieces = [1046.5, 1318.51, 1567.98];
@@ -162,11 +161,10 @@ function calculerLuminosite(points) {
   return (1 + Math.cos((2 * Math.PI * points) / 1000)) / 2;
 }
 
-// Soleil et lune se déplacent en arc, synchronisés avec le cycle jour/nuit
 function dessinerAstres(points) {
-  const cyclePos = (((points % 1000) + 1000) % 1000) / 1000; // 0 -> 1
+  const cyclePos = (((points % 1000) + 1000) % 1000) / 1000;
   const estJour = cyclePos < 0.5;
-  const local = estJour ? cyclePos / 0.5 : (cyclePos - 0.5) / 0.5; // 0 -> 1 dans la demi-phase
+  const local = estJour ? cyclePos / 0.5 : (cyclePos - 0.5) / 0.5;
   const x = 40 + local * 720;
   const y = 90 - Math.sin(local * Math.PI) * 55;
 
@@ -239,7 +237,6 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
 }
 
-// Halo lumineux ajouté derrière les dangers quand il fait nuit, pour rester bien visibles
 function dessinerHalo(x, y, rayon) {
   const intensite = Math.max(0, (0.45 - luminositeGlobale) / 0.45);
   if (intensite <= 0) return;
@@ -370,17 +367,17 @@ function dessinerJoueur() {
   dessinerPersonnage(joueur.x + 26, pieds, 1.4, "#ef4444");
 }
 
-// ---------- OBSTACLES (rochers, pics, caisses, zombies, zombies géants) ----------
+// ---------- OBSTACLES ----------
 function planifierProchainObstacle() {
   prochainObstacle = compteur + 60 + Math.random() * 180;
 }
 
 function typeAleatoireObstacle() {
   const r = Math.random();
-  if (r < 0.07) return "zombieGeant";
-  if (r < 0.28) return "zombie";
-  if (r < 0.52) return "rocher";
-  if (r < 0.78) return "pic";
+  if (r < 0.20) return "zombieGeant";
+  if (r < 0.38) return "zombie";
+  if (r < 0.58) return "rocher";
+  if (r < 0.80) return "pic";
   return "caisse";
 }
 
@@ -401,7 +398,6 @@ function dessinerZombie(x, taille, decalage, geant) {
 
   dessinerHalo(x, hautZ + taille * 0.5, taille * 0.9);
 
-  // Jambes
   ctx.strokeStyle = "#2a2a2a";
   ctx.lineWidth = taille * 0.14;
   ctx.lineCap = "round";
@@ -412,7 +408,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.lineTo(x + taille / 5, SOL_Y);
   ctx.stroke();
 
-  // Torse déchiré
   ctx.fillStyle = couleurVetement;
   ctx.fillRect(x - taille / 3, hautZ + taille * 0.32, taille / 1.5, taille * 0.55);
   ctx.fillStyle = couleurPeau;
@@ -423,7 +418,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.closePath();
   ctx.fill();
 
-  // Bras qui se balancent
   ctx.strokeStyle = couleurPeau;
   ctx.lineWidth = taille * 0.1;
   ctx.beginPath();
@@ -433,20 +427,17 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.25);
   ctx.stroke();
 
-  // Tête
   ctx.fillStyle = couleurPeau;
   ctx.beginPath();
   ctx.arc(x, hautZ + taille * 0.16, taille * 0.19, 0, Math.PI * 2);
   ctx.fill();
 
-  // Yeux rouges lumineux
   ctx.fillStyle = "#ff3b30";
   ctx.beginPath();
   ctx.arc(x - taille * 0.06, hautZ + taille * 0.13, taille * 0.035, 0, Math.PI * 2);
   ctx.arc(x + taille * 0.08, hautZ + taille * 0.18, taille * 0.035, 0, Math.PI * 2);
   ctx.fill();
 
-  // Bouche entrouverte
   ctx.strokeStyle = "#1a1a1a";
   ctx.lineWidth = taille * 0.02;
   ctx.beginPath();
@@ -454,7 +445,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.stroke();
 
   if (geant) {
-    // Couronne d'épines pour bien signaler le danger renforcé
     ctx.fillStyle = "#1a1a1a";
     for (let i = -2; i <= 2; i++) {
       ctx.beginPath();
@@ -501,7 +491,6 @@ function deplacerObstacles() {
   obstacles = obstacles.filter(o => o.x + o.taille > 0);
 }
 
-// Hitbox resserrée : marge de tolérance pour n'éliminer qu'en cas de contact réel
 function verifierCollision() {
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
@@ -529,7 +518,7 @@ function verifierCollision() {
   });
 }
 
-// ---------- OISEAUX (obstacles aériens, écrasables par-dessus) ----------
+// ---------- OISEAUX ----------
 function planifierProchainOiseau() {
   prochainOiseau = compteur + 110 + Math.random() * 220;
 }
@@ -550,13 +539,11 @@ function dessinerOiseaux() {
 
     const battement = Math.sin((compteur + o.decalage) / 5) * 10;
 
-    // Corps
     ctx.fillStyle = "#4a5b6e";
     ctx.beginPath();
     ctx.ellipse(o.x, o.y, o.envergure * 0.28, o.envergure * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Ailes
     ctx.strokeStyle = "#2c3a47";
     ctx.lineWidth = 3.5;
     ctx.lineCap = "round";
@@ -567,7 +554,6 @@ function dessinerOiseaux() {
     ctx.quadraticCurveTo(o.x + o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
     ctx.stroke();
 
-    // Tête et bec
     ctx.fillStyle = "#4a5b6e";
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.22, o.y - o.envergure * 0.06, o.envergure * 0.13, 0, Math.PI * 2);
@@ -580,7 +566,6 @@ function dessinerOiseaux() {
     ctx.closePath();
     ctx.fill();
 
-    // Œil
     ctx.fillStyle = "#111";
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, 1.6, 0, Math.PI * 2);
@@ -593,7 +578,6 @@ function deplacerOiseaux() {
   oiseaux = oiseaux.filter(o => o.x + o.envergure > 0);
 }
 
-// Un contact par-dessus (en train de retomber) fait rebondir + bonus ; un contact de côté élimine
 function verifierCollisionOiseaux() {
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
@@ -630,9 +614,14 @@ function verifierCollisionOiseaux() {
   }
 }
 
-// ---------- PALIERS ET VITESSE ----------
+// ---------- SCORE, TEMPS ET PALIERS ----------
 function pointsActuels() {
   return Math.floor(score / 10) + bonusPoints;
+}
+
+// Points liés uniquement au temps écoulé, indépendants des bonus, pour le cycle jour/nuit
+function pointsTemps() {
+  return Math.floor(score / 10);
 }
 
 function gererVitesse(points) {
@@ -677,7 +666,7 @@ function terminerJeu() {
 
 function dessinerEcranPerte() {
   const points = pointsActuels();
-  dessinerFond(points);
+  dessinerFond(pointsTemps());
   dessinerSol();
   dessinerObstacles();
   dessinerOiseaux();
@@ -713,7 +702,7 @@ function animerVictoire() {
 
   if (Math.random() < 0.05) creerFeuArtifice();
 
-  dessinerFond(pointsActuels());
+  dessinerFond(pointsTemps());
 
   feuxArtifice.forEach(f => {
     ctx.fillStyle = f.couleur;
@@ -754,7 +743,6 @@ function animerVictoire() {
   requestAnimationFrame(animerVictoire);
 }
 
-// ---------- SCORE ET CHRONOMÈTRE ----------
 function dessinerScore() {
   ctx.fillStyle = "#333";
   ctx.font = "20px Arial";
@@ -809,7 +797,6 @@ function maj() {
 
   compteur++;
 
-  // Espacement garanti entre deux dangers (sol ou air), pour éviter les situations infranchissables
   if (compteur >= prochainObstacle) {
     if (compteur - dernierSpawnCompteur >= ESPACEMENT_MIN) {
       creerObstacle();
@@ -839,9 +826,7 @@ function maj() {
 function boucle() {
   if (jeuTermine) return;
 
-  const points = pointsActuels();
-
-  dessinerFond(points);
+  dessinerFond(pointsTemps());
   maj();
 
   if (jeuTermine) return;
@@ -851,24 +836,22 @@ function boucle() {
   dessinerOiseaux();
   dessinerJoueur();
 
-  if (points >= 700) {
+  if (pointsActuels() >= 700) {
     deplacerEtDessinerPluie();
   }
 
-  gererEclairs(points);
+  gererEclairs(pointsActuels());
 
   dessinerScore();
 
   requestAnimationFrame(boucle);
 }
 
+// Sauts illimités, y compris en l'air
 function sauter() {
   initAudio();
   if (jeuTermine) return;
-  if (sautsRestants > 0) {
-    joueur.vitesseY = -15;
-    sautsRestants--;
-  }
+  joueur.vitesseY = -15;
 }
 
 document.addEventListener("keydown", (e) => {
