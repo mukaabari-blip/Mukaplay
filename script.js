@@ -28,6 +28,8 @@ let passagesOiseaux;
 let prochainPassage;
 let particulesExplosion = [];
 let flashExplosion = 0;
+let dragons;
+let prochainPalierDragon = 400;
 
 // ---------- PLEIN ÉCRAN RESPONSIVE ----------
 function redimensionner() {
@@ -129,6 +131,42 @@ function jouerSonExplosion() {
       osc.stop(audioCtx.currentTime + 0.2);
     }, 300 + i * 90 + Math.random() * 40);
   }
+}
+
+function jouerSonFeu() {
+  initAudio();
+
+  const bufferSize = audioCtx.sampleRate * 0.75;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    const enveloppe = Math.sin((i / bufferSize) * Math.PI);
+    data[i] = (Math.random() * 2 - 1) * enveloppe;
+  }
+  const bruit = audioCtx.createBufferSource();
+  bruit.buffer = buffer;
+  const filtre = audioCtx.createBiquadFilter();
+  filtre.type = "lowpass";
+  filtre.frequency.setValueAtTime(1800, audioCtx.currentTime);
+  filtre.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.75);
+  const gainBruit = audioCtx.createGain();
+  gainBruit.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  bruit.connect(filtre);
+  filtre.connect(gainBruit);
+  gainBruit.connect(audioCtx.destination);
+  bruit.start();
+
+  const rugissement = audioCtx.createOscillator();
+  const gainRugissement = audioCtx.createGain();
+  rugissement.type = "sawtooth";
+  rugissement.frequency.setValueAtTime(90, audioCtx.currentTime);
+  rugissement.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.5);
+  gainRugissement.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  gainRugissement.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+  rugissement.connect(gainRugissement);
+  gainRugissement.connect(audioCtx.destination);
+  rugissement.start();
+  rugissement.stop(audioCtx.currentTime + 0.6);
 }
 
 function jouerSonPalier() {
@@ -728,6 +766,164 @@ function verifierCollisionPassages() {
   });
 }
 
+// ---------- DRAGONS GÉANTS CRACHEURS DE FEU ----------
+function creerDragon() {
+  const hauteurVol = 90 + Math.random() * 130;
+  dragons.push({
+    x: canvas.width + 60,
+    y: SOL_Y - hauteurVol,
+    envergure: 150,
+    decalage: Math.random() * 100,
+    prochainSouffle: 60 + Math.random() * 60,
+    souffleActif: false,
+    souffleTempsRestant: 0,
+    flammes: []
+  });
+}
+
+function dessinerDragon(d) {
+  dessinerHalo(d.x, d.y, d.envergure * 0.7);
+
+  const battement = Math.sin((compteur + d.decalage) / 10) * 14;
+
+  ctx.fillStyle = "#7a1f1f";
+  ctx.beginPath();
+  ctx.ellipse(d.x, d.y, d.envergure * 0.22, d.envergure * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#5a1414";
+  ctx.beginPath();
+  ctx.moveTo(d.x - d.envergure * 0.5, d.y + battement);
+  ctx.lineTo(d.x - d.envergure * 0.1, d.y - d.envergure * 0.05);
+  ctx.lineTo(d.x - d.envergure * 0.15, d.y + d.envergure * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(d.x + d.envergure * 0.5, d.y + battement);
+  ctx.lineTo(d.x + d.envergure * 0.1, d.y - d.envergure * 0.05);
+  ctx.lineTo(d.x + d.envergure * 0.15, d.y + d.envergure * 0.1);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#7a1f1f";
+  ctx.beginPath();
+  ctx.ellipse(d.x - d.envergure * 0.32, d.y - d.envergure * 0.02, d.envergure * 0.13, d.envergure * 0.08, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#3a0d0d";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(d.x - d.envergure * 0.38, d.y - d.envergure * 0.08);
+  ctx.lineTo(d.x - d.envergure * 0.44, d.y - d.envergure * 0.18);
+  ctx.moveTo(d.x - d.envergure * 0.34, d.y - d.envergure * 0.08);
+  ctx.lineTo(d.x - d.envergure * 0.38, d.y - d.envergure * 0.2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffcc00";
+  ctx.beginPath();
+  ctx.arc(d.x - d.envergure * 0.36, d.y - d.envergure * 0.04, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#7a1f1f";
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(d.x + d.envergure * 0.2, d.y);
+  ctx.quadraticCurveTo(d.x + d.envergure * 0.4, d.y + battement * 0.5, d.x + d.envergure * 0.48, d.y - 10);
+  ctx.stroke();
+
+  if (d.souffleActif) {
+    d.flammes.forEach(f => {
+      const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.taille);
+      grad.addColorStop(0, "rgba(255,255,180,0.9)");
+      grad.addColorStop(0.5, "rgba(255,140,0,0.8)");
+      grad.addColorStop(1, "rgba(200,30,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.taille, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+}
+
+function majDragon(d) {
+  d.x -= vitesseDefilement * 0.9;
+
+  d.prochainSouffle--;
+  if (d.prochainSouffle <= 0 && !d.souffleActif) {
+    d.souffleActif = true;
+    d.souffleTempsRestant = 45;
+    jouerSonFeu();
+  }
+
+  if (d.souffleActif) {
+    for (let i = 0; i < 3; i++) {
+      d.flammes.push({
+        x: d.x - d.envergure * 0.45,
+        y: d.y - d.envergure * 0.02 + (Math.random() * 10 - 5),
+        vx: -(6 + Math.random() * 3),
+        taille: 8 + Math.random() * 8,
+        vie: 25
+      });
+    }
+    d.flammes.forEach(f => { f.x += f.vx; f.vie--; f.taille *= 0.97; });
+    d.flammes = d.flammes.filter(f => f.vie > 0);
+
+    d.souffleTempsRestant--;
+    if (d.souffleTempsRestant <= 0) {
+      d.souffleActif = false;
+      d.prochainSouffle = 120 + Math.random() * 100;
+    }
+  } else {
+    d.flammes.forEach(f => { f.x += f.vx; f.vie--; f.taille *= 0.97; });
+    d.flammes = d.flammes.filter(f => f.vie > 0);
+  }
+}
+
+function deplacerEtDessinerDragons() {
+  dragons.forEach(d => {
+    majDragon(d);
+    dessinerDragon(d);
+  });
+  dragons = dragons.filter(d => d.x + d.envergure > -100);
+}
+
+function verifierCollisionDragons() {
+  const margeJ = 5;
+  const gaucheJ = joueur.x + margeJ;
+  const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
+  const piedsJ = joueur.y + joueur.hauteur - 2;
+  const hautJ = piedsJ - hauteurMaxDuo() + 8;
+
+  dragons.forEach(d => {
+    const margeD = 12;
+    const gaucheD = d.x - d.envergure / 2 + margeD;
+    const droiteD = d.x + d.envergure / 2 - margeD;
+    const hautD = d.y - d.envergure * 0.15;
+    const basD = d.y + d.envergure * 0.15;
+
+    if (
+      !jeuTermine &&
+      gaucheJ < droiteD && droiteJ > gaucheD &&
+      hautJ < basD && piedsJ > hautD
+    ) {
+      jeuTermine = true;
+      victoire = false;
+      terminerJeu();
+    }
+
+    d.flammes.forEach(f => {
+      const distX = Math.abs((gaucheJ + droiteJ) / 2 - f.x);
+      const distY = Math.abs((hautJ + piedsJ) / 2 - f.y);
+      if (!jeuTermine && distX < f.taille + 12 && distY < f.taille + hauteurMaxDuo() / 2) {
+        jeuTermine = true;
+        victoire = false;
+        terminerJeu();
+      }
+    });
+  });
+}
+
 // ---------- SCORE, TEMPS ET PALIERS ----------
 function pointsActuels() {
   return Math.floor(score / 10) + bonusPoints;
@@ -923,6 +1119,8 @@ function resetJeu() {
   obstacles = [];
   oiseaux = [];
   passagesOiseaux = [];
+  dragons = [];
+  prochainPalierDragon = 400;
   score = 0;
   bonusPoints = 0;
   jeuTermine = false;
@@ -988,6 +1186,10 @@ function maj() {
     }
     planifierProchainPassage();
   }
+  if (pointsActuels() >= prochainPalierDragon) {
+    creerDragon();
+    prochainPalierDragon += 400;
+  }
 
   deplacerObstacles();
   deplacerOiseaux();
@@ -995,6 +1197,7 @@ function maj() {
   verifierCollision();
   verifierCollisionOiseaux();
   verifierCollisionPassages();
+  verifierCollisionDragons();
 
   if (!jeuTermine) score++;
 
@@ -1013,6 +1216,7 @@ function boucle() {
   dessinerSol();
   dessinerObstacles();
   dessinerOiseaux();
+  deplacerEtDessinerDragons();
   dessinerJoueur();
 
   if (pointsActuels() >= 700) {
@@ -1029,11 +1233,7 @@ function boucle() {
 function sauter() {
   initAudio();
   if (jeuTermine) return;
-  if (joueur.surLeSol) {
-    joueur.vitesseY = -15;
-  } else {
-    joueur.vitesseY = -7.5;
-  }
+  joueur.vitesseY = -15;
 }
 
 document.addEventListener("keydown", (e) => {
