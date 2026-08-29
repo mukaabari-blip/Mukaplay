@@ -17,7 +17,7 @@ let gouttesPluie = [];
 let etoiles = [];
 let eclairAlpha = 0;
 let prochainEclair = 0;
-let tempsDebut = 0;
+let sautsRestants = 2;
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -130,8 +130,6 @@ function deplacerNuages() {
   });
 }
 
-// brightness = 1 (plein jour) -> 0 (pleine nuit) -> 1, cycle complet tous les 1000 points
-// => 5 cycles complets sur les 5000 points de la partie
 function calculerLuminosite(points) {
   return (1 + Math.cos((2 * Math.PI * points) / 1000)) / 2;
 }
@@ -145,7 +143,6 @@ function dessinerFond(points) {
   ctx.fillStyle = degrade;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Soleil (visible le jour) / Lune (visible la nuit), fondu selon la luminosité
   ctx.globalAlpha = luminosite;
   ctx.fillStyle = "#ffe066";
   ctx.beginPath();
@@ -160,7 +157,6 @@ function dessinerFond(points) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Collines
   ctx.fillStyle = "#a3d9a5";
   ctx.beginPath();
   ctx.moveTo(0, SOL_Y);
@@ -170,7 +166,6 @@ function dessinerFond(points) {
   ctx.closePath();
   ctx.fill();
 
-  // Nuages
   ctx.fillStyle = "rgba(255,255,255,0.85)";
   nuages.forEach(n => {
     ctx.beginPath();
@@ -180,13 +175,11 @@ function dessinerFond(points) {
     ctx.fill();
   });
 
-  // Assombrissement global façon nuit (obscurcit ciel/collines/nuages ensemble)
   const nuit = 1 - luminosite;
   if (nuit > 0.02) {
     ctx.fillStyle = `rgba(5,5,35,${nuit * 0.65})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Étoiles, visibles seulement quand il fait bien nuit
     ctx.fillStyle = `rgba(255,255,255,${nuit})`;
     etoiles.forEach(e => {
       ctx.beginPath();
@@ -203,7 +196,7 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
 }
 
-// ---------- MÉTÉO : pluie et éclairs ----------
+// ---------- MÉTÉO ----------
 function deplacerEtDessinerPluie() {
   ctx.strokeStyle = "rgba(180,200,255,0.6)";
   ctx.lineWidth = 1.5;
@@ -430,7 +423,7 @@ function pointsActuels() {
 
 function gererVitesse(points) {
   const ratio = Math.min(points, POINTS_VICTOIRE) / POINTS_VICTOIRE;
-  vitesseDefilement = VITESSE_BASE * (1 + 2 * ratio); // 1x au début, 3x à 5000 points
+  vitesseDefilement = VITESSE_BASE * (1 + 2 * ratio);
 }
 
 function gererPaliers() {
@@ -552,7 +545,7 @@ function dessinerScore() {
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + pointsActuels(), 20, 30);
 
-  const secondesTotales = Math.floor((compteur) / 60);
+  const secondesTotales = Math.floor(compteur / 60);
   const minutes = Math.floor(secondesTotales / 60);
   const secondes = secondesTotales % 60;
   const tempsFormate = minutes + ":" + (secondes < 10 ? "0" : "") + secondes;
@@ -575,6 +568,7 @@ function resetJeu() {
   zoomActuel = 1;
   eclairAlpha = 0;
   prochainEclair = 400 + Math.random() * 300;
+  sautsRestants = 2;
   planifierProchainObstacle();
   initDecor();
   demarrerMusique();
@@ -589,6 +583,7 @@ function maj() {
     joueur.y = SOL_Y - joueur.hauteur;
     joueur.vitesseY = 0;
     joueur.surLeSol = true;
+    sautsRestants = 2;
   } else {
     joueur.surLeSol = false;
   }
@@ -635,8 +630,10 @@ function boucle() {
 
 function sauter() {
   initAudio();
-  if (!jeuTermine && joueur.surLeSol) {
+  if (jeuTermine) return;
+  if (sautsRestants > 0) {
     joueur.vitesseY = -15;
+    sautsRestants--;
   }
 }
 
