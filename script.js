@@ -18,6 +18,8 @@ let etoiles = [];
 let eclairAlpha = 0;
 let prochainEclair = 0;
 let sautsRestants = 2;
+let oiseaux;
+let prochainOiseau;
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -416,6 +418,66 @@ function verifierCollision() {
   });
 }
 
+// ---------- OISEAUX (obstacles aériens) ----------
+function planifierProchainOiseau() {
+  prochainOiseau = compteur + 100 + Math.random() * 200;
+}
+
+function creerOiseau() {
+  const hauteurVol = 100 + Math.random() * 140;
+  oiseaux.push({
+    x: canvas.width,
+    y: SOL_Y - hauteurVol,
+    envergure: 22 + Math.random() * 10,
+    decalage: Math.random() * 100
+  });
+}
+
+function dessinerOiseaux() {
+  ctx.strokeStyle = "#2c2c2c";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  oiseaux.forEach(o => {
+    const battement = Math.sin((compteur + o.decalage) / 5) * 8;
+    ctx.beginPath();
+    ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
+    ctx.lineTo(o.x, o.y - 4);
+    ctx.lineTo(o.x + o.envergure / 2, o.y + battement);
+    ctx.stroke();
+  });
+}
+
+function deplacerOiseaux() {
+  oiseaux.forEach(o => o.x -= vitesseDefilement * 1.2);
+  oiseaux = oiseaux.filter(o => o.x + o.envergure > 0);
+}
+
+function verifierCollisionOiseaux() {
+  const largeurTotale = 26 + 42 * 1.4;
+  const hauteurMax = 44 * 1.4;
+  const pieds = joueur.y + joueur.hauteur;
+  const hautDuo = pieds - hauteurMax;
+
+  oiseaux.forEach(o => {
+    const oGauche = o.x - o.envergure / 2;
+    const oDroite = o.x + o.envergure / 2;
+    const oHaut = o.y - 10;
+    const oBas = o.y + 10;
+
+    if (
+      !jeuTermine &&
+      joueur.x < oDroite &&
+      joueur.x + largeurTotale > oGauche &&
+      hautDuo < oBas &&
+      pieds > oHaut
+    ) {
+      jeuTermine = true;
+      victoire = false;
+      terminerJeu();
+    }
+  });
+}
+
 // ---------- PALIERS ET VITESSE ----------
 function pointsActuels() {
   return Math.floor(score / 10);
@@ -466,6 +528,7 @@ function dessinerEcranPerte() {
   dessinerFond(points);
   dessinerSol();
   dessinerObstacles();
+  dessinerOiseaux();
   dessinerJoueur();
   ctx.fillStyle = "#222";
   ctx.font = "30px Arial";
@@ -558,6 +621,7 @@ function resetJeu() {
   boutonRejouer.style.display = "none";
   joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
   obstacles = [];
+  oiseaux = [];
   score = 0;
   jeuTermine = false;
   victoire = false;
@@ -570,6 +634,7 @@ function resetJeu() {
   prochainEclair = 400 + Math.random() * 300;
   sautsRestants = 2;
   planifierProchainObstacle();
+  planifierProchainOiseau();
   initDecor();
   demarrerMusique();
   boucle();
@@ -593,10 +658,16 @@ function maj() {
     creerObstacle();
     planifierProchainObstacle();
   }
+  if (compteur >= prochainOiseau) {
+    creerOiseau();
+    planifierProchainOiseau();
+  }
 
   deplacerObstacles();
+  deplacerOiseaux();
   deplacerNuages();
   verifierCollision();
+  verifierCollisionOiseaux();
 
   if (!jeuTermine) score++;
 
@@ -615,6 +686,7 @@ function boucle() {
 
   dessinerSol();
   dessinerObstacles();
+  dessinerOiseaux();
   dessinerJoueur();
 
   if (points >= 700) {
