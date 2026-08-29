@@ -6,13 +6,18 @@ const musiqueJeu = document.getElementById("musiqueJeu");
 const gravite = 0.8;
 const SOL_Y = 340;
 const POINTS_VICTOIRE = 5000;
+const VITESSE_BASE = 6;
 
 let joueur, obstacles, score, jeuTermine, victoire, compteur, nuages, prochainObstacle;
-let vitesseDefilement = 6;
-let dernierPalierVitesse = 0;
+let vitesseDefilement = VITESSE_BASE;
 let scintillementFin = 0;
 let feuxArtifice = [];
 let zoomActuel = 1;
+let gouttesPluie = [];
+let etoiles = [];
+let eclairAlpha = 0;
+let prochainEclair = 0;
+let tempsDebut = 0;
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -94,11 +99,27 @@ function jouerFanfareVictoire() {
   });
 }
 
-// ---------- DÉCOR ----------
-function initNuages() {
+// ---------- DÉCOR : cycle jour/nuit ----------
+function initDecor() {
   nuages = [];
   for (let i = 0; i < 4; i++) {
     nuages.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * 80 });
+  }
+  etoiles = [];
+  for (let i = 0; i < 60; i++) {
+    etoiles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * (SOL_Y - 20),
+      taille: Math.random() * 1.5 + 0.5
+    });
+  }
+  gouttesPluie = [];
+  for (let i = 0; i < 120; i++) {
+    gouttesPluie.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vitesse: 6 + Math.random() * 6
+    });
   }
 }
 
@@ -109,18 +130,37 @@ function deplacerNuages() {
   });
 }
 
-function dessinerFond() {
+// brightness = 1 (plein jour) -> 0 (pleine nuit) -> 1, cycle complet tous les 1000 points
+// => 5 cycles complets sur les 5000 points de la partie
+function calculerLuminosite(points) {
+  return (1 + Math.cos((2 * Math.PI * points) / 1000)) / 2;
+}
+
+function dessinerFond(points) {
+  const luminosite = calculerLuminosite(points);
+
   const degrade = ctx.createLinearGradient(0, 0, 0, canvas.height);
   degrade.addColorStop(0, "#87CEEB");
   degrade.addColorStop(1, "#e0f7fa");
   ctx.fillStyle = degrade;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Soleil (visible le jour) / Lune (visible la nuit), fondu selon la luminosité
+  ctx.globalAlpha = luminosite;
   ctx.fillStyle = "#ffe066";
   ctx.beginPath();
   ctx.arc(700, 60, 30, 0, Math.PI * 2);
   ctx.fill();
+  ctx.globalAlpha = 1;
 
+  ctx.globalAlpha = 1 - luminosite;
+  ctx.fillStyle = "#e8e8f0";
+  ctx.beginPath();
+  ctx.arc(700, 60, 24, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Collines
   ctx.fillStyle = "#a3d9a5";
   ctx.beginPath();
   ctx.moveTo(0, SOL_Y);
@@ -130,6 +170,7 @@ function dessinerFond() {
   ctx.closePath();
   ctx.fill();
 
+  // Nuages
   ctx.fillStyle = "rgba(255,255,255,0.85)";
   nuages.forEach(n => {
     ctx.beginPath();
@@ -138,6 +179,21 @@ function dessinerFond() {
     ctx.arc(n.x + 30, n.y, 15, 0, Math.PI * 2);
     ctx.fill();
   });
+
+  // Assombrissement global façon nuit (obscurcit ciel/collines/nuages ensemble)
+  const nuit = 1 - luminosite;
+  if (nuit > 0.02) {
+    ctx.fillStyle = `rgba(5,5,35,${nuit * 0.65})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Étoiles, visibles seulement quand il fait bien nuit
+    ctx.fillStyle = `rgba(255,255,255,${nuit})`;
+    etoiles.forEach(e => {
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.taille, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
 }
 
 function dessinerSol() {
@@ -145,6 +201,40 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, canvas.height - SOL_Y);
   ctx.fillStyle = "#4a6b1f";
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
+}
+
+// ---------- MÉTÉO : pluie et éclairs ----------
+function deplacerEtDessinerPluie() {
+  ctx.strokeStyle = "rgba(180,200,255,0.6)";
+  ctx.lineWidth = 1.5;
+  gouttesPluie.forEach(g => {
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x - 3, g.y + 12);
+    ctx.stroke();
+    g.y += g.vitesse;
+    g.x -= 2;
+    if (g.y > canvas.height) {
+      g.y = -10;
+      g.x = Math.random() * canvas.width;
+    }
+  });
+}
+
+function gererEclairs(points) {
+  if (points < 1500) return;
+
+  if (compteur >= prochainEclair) {
+    eclairAlpha = 0.7;
+    prochainEclair = compteur + 150 + Math.random() * 250;
+  }
+
+  if (eclairAlpha > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${eclairAlpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    eclairAlpha -= 0.08;
+    if (eclairAlpha < 0) eclairAlpha = 0;
+  }
 }
 
 // ---------- PERSONNAGES ----------
@@ -228,16 +318,54 @@ function dessinerJoueur() {
   dessinerPersonnage(joueur.x + 26, pieds, 1.4, "#ef4444");
 }
 
-// ---------- OBSTACLES ----------
+// ---------- OBSTACLES (dont zombies) ----------
 function planifierProchainObstacle() {
   prochainObstacle = compteur + 50 + Math.random() * 170;
 }
 
 function creerObstacle() {
-  const types = ["rocher", "pic", "caisse"];
+  const types = ["rocher", "pic", "caisse", "zombie"];
   const type = types[Math.floor(Math.random() * types.length)];
-  const taille = 25 + Math.random() * 15;
-  obstacles.push({ x: canvas.width, type, taille });
+  const taille = type === "zombie" ? 34 + Math.random() * 8 : 25 + Math.random() * 15;
+  obstacles.push({ x: canvas.width, type, taille, decalage: Math.random() * 100 });
+}
+
+function dessinerZombie(x, taille, decalage) {
+  const balancement = Math.sin((compteur + decalage) / 8) * 3;
+  const hautZ = SOL_Y - taille;
+
+  ctx.fillStyle = "#5a7a4a";
+  ctx.fillRect(x - taille / 3, hautZ + taille * 0.35, taille / 1.5, taille * 0.5);
+
+  ctx.fillStyle = "#8faa7a";
+  ctx.beginPath();
+  ctx.arc(x, hautZ + taille * 0.18, taille * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#5a7a4a";
+  ctx.lineWidth = taille * 0.12;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x - taille / 3, hautZ + taille * 0.45);
+  ctx.lineTo(x - taille / 2 - balancement, hautZ + taille * 0.3);
+  ctx.moveTo(x + taille / 3, hautZ + taille * 0.45);
+  ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.3);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#3a3a3a";
+  ctx.lineWidth = taille * 0.15;
+  ctx.beginPath();
+  ctx.moveTo(x - taille / 5, hautZ + taille * 0.85);
+  ctx.lineTo(x - taille / 5, SOL_Y);
+  ctx.moveTo(x + taille / 5, hautZ + taille * 0.85);
+  ctx.lineTo(x + taille / 5, SOL_Y);
+  ctx.stroke();
+
+  ctx.fillStyle = "#c0392b";
+  ctx.beginPath();
+  ctx.arc(x - taille * 0.05, hautZ + taille * 0.15, taille * 0.03, 0, Math.PI * 2);
+  ctx.arc(x + taille * 0.08, hautZ + taille * 0.2, taille * 0.03, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function dessinerObstacles() {
@@ -255,6 +383,8 @@ function dessinerObstacles() {
       ctx.lineTo(o.x + o.taille / 2, SOL_Y);
       ctx.closePath();
       ctx.fill();
+    } else if (o.type === "zombie") {
+      dessinerZombie(o.x, o.taille, o.decalage);
     } else {
       ctx.fillStyle = "#8b5a2b";
       ctx.fillRect(o.x - o.taille / 2, SOL_Y - o.taille, o.taille, o.taille);
@@ -298,14 +428,15 @@ function pointsActuels() {
   return Math.floor(score / 10);
 }
 
+function gererVitesse(points) {
+  const ratio = Math.min(points, POINTS_VICTOIRE) / POINTS_VICTOIRE;
+  vitesseDefilement = VITESSE_BASE * (1 + 2 * ratio); // 1x au début, 3x à 5000 points
+}
+
 function gererPaliers() {
   const points = pointsActuels();
 
-  const palierVitesse = Math.floor(points / 500);
-  if (palierVitesse > dernierPalierVitesse) {
-    dernierPalierVitesse = palierVitesse;
-    vitesseDefilement += 0.5;
-  }
+  gererVitesse(points);
 
   if (points > 0 && points % 1000 === 0 && points < POINTS_VICTOIRE) {
     if (scintillementFin < compteur) {
@@ -338,14 +469,15 @@ function terminerJeu() {
 }
 
 function dessinerEcranPerte() {
-  dessinerFond();
+  const points = pointsActuels();
+  dessinerFond(points);
   dessinerSol();
   dessinerObstacles();
   dessinerJoueur();
   ctx.fillStyle = "#222";
   ctx.font = "30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Game Over - Score: " + pointsActuels(), canvas.width / 2, 180);
+  ctx.fillText("Game Over - Score: " + points, canvas.width / 2, 180);
   ctx.textAlign = "left";
 }
 
@@ -373,7 +505,7 @@ function animerVictoire() {
 
   if (Math.random() < 0.05) creerFeuArtifice();
 
-  dessinerFond();
+  dessinerFond(pointsActuels());
 
   feuxArtifice.forEach(f => {
     ctx.fillStyle = f.couleur;
@@ -414,11 +546,18 @@ function animerVictoire() {
   requestAnimationFrame(animerVictoire);
 }
 
-// ---------- SCORE ----------
+// ---------- SCORE ET CHRONOMÈTRE ----------
 function dessinerScore() {
   ctx.fillStyle = "#333";
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + pointsActuels(), 20, 30);
+
+  const secondesTotales = Math.floor((compteur) / 60);
+  const minutes = Math.floor(secondesTotales / 60);
+  const secondes = secondesTotales % 60;
+  const tempsFormate = minutes + ":" + (secondes < 10 ? "0" : "") + secondes;
+  ctx.font = "16px Arial";
+  ctx.fillText("Temps: " + tempsFormate, 20, 52);
 }
 
 // ---------- BOUCLE PRINCIPALE ----------
@@ -430,13 +569,14 @@ function resetJeu() {
   jeuTermine = false;
   victoire = false;
   compteur = 0;
-  vitesseDefilement = 6;
-  dernierPalierVitesse = 0;
+  vitesseDefilement = VITESSE_BASE;
   scintillementFin = 0;
   feuxArtifice = [];
   zoomActuel = 1;
+  eclairAlpha = 0;
+  prochainEclair = 400 + Math.random() * 300;
   planifierProchainObstacle();
-  initNuages();
+  initDecor();
   demarrerMusique();
   boucle();
 }
@@ -471,7 +611,9 @@ function maj() {
 function boucle() {
   if (jeuTermine) return;
 
-  dessinerFond();
+  const points = pointsActuels();
+
+  dessinerFond(points);
   maj();
 
   if (jeuTermine) return;
@@ -479,6 +621,13 @@ function boucle() {
   dessinerSol();
   dessinerObstacles();
   dessinerJoueur();
+
+  if (points >= 700) {
+    deplacerEtDessinerPluie();
+  }
+
+  gererEclairs(points);
+
   dessinerScore();
 
   requestAnimationFrame(boucle);
