@@ -768,11 +768,11 @@ function verifierCollisionPassages() {
 
 // ---------- DRAGONS GÉANTS CRACHEURS DE FEU ----------
 function creerDragon() {
-  const hauteurVol = 90 + Math.random() * 130;
+  const hauteurVol = 260 + Math.random() * 100;
   dragons.push({
-    x: canvas.width + 60,
+    x: canvas.width + 100,
     y: SOL_Y - hauteurVol,
-    envergure: 150,
+    envergure: 260,
     decalage: Math.random() * 100,
     prochainSouffle: 60 + Math.random() * 60,
     souffleActif: false,
@@ -784,53 +784,115 @@ function creerDragon() {
 function dessinerDragon(d) {
   dessinerHalo(d.x, d.y, d.envergure * 0.7);
 
-  const battement = Math.sin((compteur + d.decalage) / 10) * 14;
+  const battement = Math.sin((compteur + d.decalage) / 10) * 22;
+  const e = d.envergure;
+
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
+  ctx.beginPath();
+  ctx.ellipse(d.x, SOL_Y + 4, e * 0.18, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#4a1010";
+  ctx.beginPath();
+  ctx.moveTo(d.x + e * 0.05, d.y - e * 0.02);
+  ctx.quadraticCurveTo(d.x + e * 0.35, d.y - e * 0.35 + battement * 0.5, d.x + e * 0.55, d.y + battement * 0.8);
+  ctx.quadraticCurveTo(d.x + e * 0.3, d.y + e * 0.05, d.x + e * 0.1, d.y + e * 0.05);
+  ctx.closePath();
+  ctx.fill();
+
+  const degradeCorps = ctx.createLinearGradient(d.x - e * 0.25, d.y - e * 0.15, d.x + e * 0.25, d.y + e * 0.15);
+  degradeCorps.addColorStop(0, "#8f2424");
+  degradeCorps.addColorStop(1, "#5a1414");
+  ctx.fillStyle = degradeCorps;
+  ctx.beginPath();
+  ctx.ellipse(d.x, d.y, e * 0.24, e * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#3a0d0d";
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(d.x + i * e * 0.06, d.y - e * 0.13);
+    ctx.lineTo(d.x + i * e * 0.06 - 4, d.y - e * 0.05);
+    ctx.lineTo(d.x + i * e * 0.06 + 4, d.y - e * 0.05);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#c96b3f";
+  ctx.beginPath();
+  ctx.ellipse(d.x, d.y + e * 0.08, e * 0.18, e * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.fillStyle = "#7a1f1f";
   ctx.beginPath();
-  ctx.ellipse(d.x, d.y, d.envergure * 0.22, d.envergure * 0.13, 0, 0, Math.PI * 2);
+  ctx.moveTo(d.x - e * 0.05, d.y - e * 0.02);
+  ctx.quadraticCurveTo(d.x - e * 0.4, d.y - e * 0.4 + battement * 0.5, d.x - e * 0.6, d.y + battement);
+  ctx.quadraticCurveTo(d.x - e * 0.35, d.y + e * 0.08, d.x - e * 0.1, d.y + e * 0.05);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#3a0d0d";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(d.x - e * 0.05, d.y - e * 0.02);
+  ctx.lineTo(d.x - e * 0.45, d.y + battement * 0.7);
+  ctx.moveTo(d.x - e * 0.05, d.y - e * 0.02);
+  ctx.lineTo(d.x - e * 0.55, d.y + battement * 0.95);
+  ctx.stroke();
+
+  ctx.fillStyle = "#7a1f1f";
+  ctx.beginPath();
+  ctx.moveTo(d.x - e * 0.22, d.y - e * 0.06);
+  ctx.quadraticCurveTo(d.x - e * 0.34, d.y - e * 0.12, d.x - e * 0.4, d.y - e * 0.04);
+  ctx.quadraticCurveTo(d.x - e * 0.3, d.y + e * 0.02, d.x - e * 0.2, d.y + e * 0.04);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#8f2424";
+  ctx.beginPath();
+  ctx.ellipse(d.x - e * 0.42, d.y - e * 0.03, e * 0.15, e * 0.09, -0.15, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#5a1414";
   ctx.beginPath();
-  ctx.moveTo(d.x - d.envergure * 0.5, d.y + battement);
-  ctx.lineTo(d.x - d.envergure * 0.1, d.y - d.envergure * 0.05);
-  ctx.lineTo(d.x - d.envergure * 0.15, d.y + d.envergure * 0.1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(d.x + d.envergure * 0.5, d.y + battement);
-  ctx.lineTo(d.x + d.envergure * 0.1, d.y - d.envergure * 0.05);
-  ctx.lineTo(d.x + d.envergure * 0.15, d.y + d.envergure * 0.1);
+  ctx.moveTo(d.x - e * 0.5, d.y);
+  ctx.lineTo(d.x - e * 0.62, d.y + e * 0.02);
+  ctx.lineTo(d.x - e * 0.48, d.y + e * 0.05);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "#7a1f1f";
+  ctx.strokeStyle = "#2a0808";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.ellipse(d.x - d.envergure * 0.32, d.y - d.envergure * 0.02, d.envergure * 0.13, d.envergure * 0.08, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = "#3a0d0d";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(d.x - d.envergure * 0.38, d.y - d.envergure * 0.08);
-  ctx.lineTo(d.x - d.envergure * 0.44, d.y - d.envergure * 0.18);
-  ctx.moveTo(d.x - d.envergure * 0.34, d.y - d.envergure * 0.08);
-  ctx.lineTo(d.x - d.envergure * 0.38, d.y - d.envergure * 0.2);
+  ctx.moveTo(d.x - e * 0.47, d.y - e * 0.1);
+  ctx.lineTo(d.x - e * 0.55, d.y - e * 0.24);
+  ctx.moveTo(d.x - e * 0.41, d.y - e * 0.1);
+  ctx.lineTo(d.x - e * 0.46, d.y - e * 0.26);
   ctx.stroke();
 
   ctx.fillStyle = "#ffcc00";
   ctx.beginPath();
-  ctx.arc(d.x - d.envergure * 0.36, d.y - d.envergure * 0.04, 3, 0, Math.PI * 2);
+  ctx.arc(d.x - e * 0.45, d.y - e * 0.05, e * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.arc(d.x - e * 0.45, d.y - e * 0.05, e * 0.008, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.strokeStyle = "#7a1f1f";
-  ctx.lineWidth = 8;
+  ctx.lineWidth = e * 0.05;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(d.x + d.envergure * 0.2, d.y);
-  ctx.quadraticCurveTo(d.x + d.envergure * 0.4, d.y + battement * 0.5, d.x + d.envergure * 0.48, d.y - 10);
+  ctx.moveTo(d.x + e * 0.2, d.y + e * 0.02);
+  ctx.quadraticCurveTo(d.x + e * 0.4, d.y + battement * 0.4, d.x + e * 0.5, d.y - e * 0.08);
   ctx.stroke();
+  ctx.fillStyle = "#3a0d0d";
+  ctx.beginPath();
+  ctx.moveTo(d.x + e * 0.5, d.y - e * 0.08);
+  ctx.lineTo(d.x + e * 0.56, d.y - e * 0.16);
+  ctx.lineTo(d.x + e * 0.5, d.y - e * 0.14);
+  ctx.closePath();
+  ctx.fill();
 
   if (d.souffleActif) {
     d.flammes.forEach(f => {
@@ -857,16 +919,27 @@ function majDragon(d) {
   }
 
   if (d.souffleActif) {
+    const origineX = d.x - d.envergure * 0.6;
+    const origineY = d.y;
+
     for (let i = 0; i < 3; i++) {
       d.flammes.push({
-        x: d.x - d.envergure * 0.45,
-        y: d.y - d.envergure * 0.02 + (Math.random() * 10 - 5),
-        vx: -(6 + Math.random() * 3),
-        taille: 8 + Math.random() * 8,
-        vie: 25
+        x: origineX + (Math.random() * 10 - 5),
+        y: origineY,
+        vx: -(1 + Math.random() * 1.5),
+        vy: 2 + Math.random() * 1.5,
+        taille: 9 + Math.random() * 9,
+        vie: 70
       });
     }
-    d.flammes.forEach(f => { f.x += f.vx; f.vie--; f.taille *= 0.97; });
+    d.flammes.forEach(f => {
+      f.x += f.vx;
+      f.y += f.vy;
+      f.vy += 0.35;
+      if (f.y >= SOL_Y) f.y = SOL_Y;
+      f.vie--;
+      f.taille *= 0.985;
+    });
     d.flammes = d.flammes.filter(f => f.vie > 0);
 
     d.souffleTempsRestant--;
@@ -875,7 +948,14 @@ function majDragon(d) {
       d.prochainSouffle = 120 + Math.random() * 100;
     }
   } else {
-    d.flammes.forEach(f => { f.x += f.vx; f.vie--; f.taille *= 0.97; });
+    d.flammes.forEach(f => {
+      f.x += f.vx;
+      f.y += f.vy;
+      f.vy += 0.35;
+      if (f.y >= SOL_Y) f.y = SOL_Y;
+      f.vie--;
+      f.taille *= 0.985;
+    });
     d.flammes = d.flammes.filter(f => f.vie > 0);
   }
 }
@@ -885,7 +965,7 @@ function deplacerEtDessinerDragons() {
     majDragon(d);
     dessinerDragon(d);
   });
-  dragons = dragons.filter(d => d.x + d.envergure > -100);
+  dragons = dragons.filter(d => d.x + d.envergure > -150);
 }
 
 function verifierCollisionDragons() {
@@ -896,11 +976,11 @@ function verifierCollisionDragons() {
   const hautJ = piedsJ - hauteurMaxDuo() + 8;
 
   dragons.forEach(d => {
-    const margeD = 12;
+    const margeD = 14;
     const gaucheD = d.x - d.envergure / 2 + margeD;
     const droiteD = d.x + d.envergure / 2 - margeD;
-    const hautD = d.y - d.envergure * 0.15;
-    const basD = d.y + d.envergure * 0.15;
+    const hautD = d.y - d.envergure * 0.18;
+    const basD = d.y + d.envergure * 0.18;
 
     if (
       !jeuTermine &&
@@ -913,9 +993,13 @@ function verifierCollisionDragons() {
     }
 
     d.flammes.forEach(f => {
-      const distX = Math.abs((gaucheJ + droiteJ) / 2 - f.x);
-      const distY = Math.abs((hautJ + piedsJ) / 2 - f.y);
-      if (!jeuTermine && distX < f.taille + 12 && distY < f.taille + hauteurMaxDuo() / 2) {
+      if (
+        !jeuTermine &&
+        gaucheJ < f.x + f.taille &&
+        droiteJ > f.x - f.taille &&
+        hautJ < f.y + f.taille &&
+        piedsJ > f.y - f.taille
+      ) {
         jeuTermine = true;
         victoire = false;
         terminerJeu();
