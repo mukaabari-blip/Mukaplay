@@ -23,6 +23,10 @@ let oiseaux;
 let prochainOiseau;
 let dernierSpawnCompteur = -9999;
 let luminositeGlobale = 1;
+let passagesOiseaux;
+let prochainPassage;
+let particulesExplosion = [];
+let flashExplosion = 0;
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -86,6 +90,35 @@ function jouerPet() {
   }
 }
 
+function jouerSonExplosion() {
+  initAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.8);
+  gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.8);
+
+  const bufferSize = audioCtx.sampleRate * 0.6;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  }
+  const bruit = audioCtx.createBufferSource();
+  bruit.buffer = buffer;
+  const gainBruit = audioCtx.createGain();
+  gainBruit.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  bruit.connect(gainBruit);
+  gainBruit.connect(audioCtx.destination);
+  bruit.start();
+}
+
 function jouerSonPalier() {
   initAudio();
   jouerNote(880, 0.15, "sine", 0.1);
@@ -126,7 +159,7 @@ function jouerSonBonus() {
   }
 }
 
-// ---------- DÉCOR : cycle jour/nuit avec astres en mouvement ----------
+// ---------- DÉCOR ----------
 function initDecor() {
   nuages = [];
   for (let i = 0; i < 4; i++) {
@@ -524,12 +557,14 @@ function planifierProchainOiseau() {
 }
 
 function creerOiseau() {
+  const geant = Math.random() < 0.12;
   const hauteurVol = 100 + Math.random() * 140;
   oiseaux.push({
     x: canvas.width,
     y: SOL_Y - hauteurVol,
-    envergure: 40 + Math.random() * 16,
-    decalage: Math.random() * 100
+    envergure: geant ? 85 + Math.random() * 25 : 40 + Math.random() * 16,
+    decalage: Math.random() * 100,
+    geant
   });
 }
 
@@ -537,15 +572,17 @@ function dessinerOiseaux() {
   oiseaux.forEach(o => {
     dessinerHalo(o.x, o.y, o.envergure * 0.9);
 
-    const battement = Math.sin((compteur + o.decalage) / 5) * 10;
+    const battement = Math.sin((compteur + o.decalage) / (o.geant ? 8 : 5)) * (o.geant ? 16 : 10);
+    const couleurCorps = o.geant ? "#7a3b1f" : "#4a5b6e";
+    const couleurAile = o.geant ? "#5c2c15" : "#2c3a47";
 
-    ctx.fillStyle = "#4a5b6e";
+    ctx.fillStyle = couleurCorps;
     ctx.beginPath();
     ctx.ellipse(o.x, o.y, o.envergure * 0.28, o.envergure * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = "#2c3a47";
-    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = couleurAile;
+    ctx.lineWidth = o.geant ? 5 : 3.5;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
@@ -554,7 +591,7 @@ function dessinerOiseaux() {
     ctx.quadraticCurveTo(o.x + o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
     ctx.stroke();
 
-    ctx.fillStyle = "#4a5b6e";
+    ctx.fillStyle = couleurCorps;
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.22, o.y - o.envergure * 0.06, o.envergure * 0.13, 0, Math.PI * 2);
     ctx.fill();
@@ -566,9 +603,9 @@ function dessinerOiseaux() {
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = "#111";
+    ctx.fillStyle = o.geant ? "#ff3b30" : "#111";
     ctx.beginPath();
-    ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, 1.6, 0, Math.PI * 2);
+    ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, o.geant ? 3 : 1.6, 0, Math.PI * 2);
     ctx.fill();
   });
 }
@@ -614,6 +651,43 @@ function verifierCollisionOiseaux() {
   }
 }
 
+// ---------- PASSAGES D'OISEAUX DÉCORATIFS ----------
+function planifierProchainPassage() {
+  prochainPassage = compteur + 200 + Math.random() * 300;
+}
+
+function creerPassageOiseaux() {
+  const nb = 3 + Math.floor(Math.random() * 4);
+  const y = 15 + Math.random() * 20;
+  const vitesse = 2 + Math.random();
+  const groupe = [];
+  for (let i = 0; i < nb; i++) {
+    groupe.push({ decalageX: i * 22 + Math.random() * 8, decalageAnim: Math.random() * 100 });
+  }
+  passagesOiseaux.push({ x: canvas.width + 50, y, vitesse, groupe });
+}
+
+function deplacerEtDessinerPassages() {
+  ctx.strokeStyle = "rgba(60,60,70,0.5)";
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  passagesOiseaux.forEach(p => {
+    p.x -= p.vitesse;
+    p.groupe.forEach(oiseau => {
+      const bx = p.x - oiseau.decalageX;
+      const battement = Math.sin((compteur + oiseau.decalageAnim) / 6) * 4;
+      ctx.beginPath();
+      ctx.moveTo(bx - 6, p.y + battement);
+      ctx.lineTo(bx, p.y - 2);
+      ctx.lineTo(bx + 6, p.y + battement);
+      ctx.stroke();
+    });
+  });
+
+  passagesOiseaux = passagesOiseaux.filter(p => p.x > -100);
+}
+
 // ---------- SCORE, TEMPS ET PALIERS ----------
 function pointsActuels() {
   return Math.floor(score / 10) + bonusPoints;
@@ -647,6 +721,62 @@ function gererPaliers() {
   }
 }
 
+// ---------- EXPLOSION DE DÉFAITE ----------
+function creerExplosion(cx, cy) {
+  particulesExplosion = [];
+  const nb = 90;
+  const couleurs = ["#ff4500", "#ff8c00", "#ffd700", "#ff0000", "#333333"];
+  for (let i = 0; i < nb; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const vitesse = 3 + Math.random() * 10;
+    particulesExplosion.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * vitesse,
+      vy: Math.sin(angle) * vitesse,
+      taille: 3 + Math.random() * 6,
+      couleur: couleurs[Math.floor(Math.random() * couleurs.length)],
+      vie: 50 + Math.random() * 30
+    });
+  }
+  flashExplosion = 1;
+}
+
+function animerExplosion() {
+  dessinerFond(pointsTemps());
+  dessinerSol();
+
+  if (flashExplosion > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${flashExplosion})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    flashExplosion -= 0.06;
+  }
+
+  particulesExplosion.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.vx *= 0.98;
+    p.vie--;
+    ctx.globalAlpha = Math.max(0, p.vie / 60);
+    ctx.fillStyle = p.couleur;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.taille, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+  particulesExplosion = particulesExplosion.filter(p => p.vie > 0);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "30px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Game Over - Score: " + pointsActuels(), canvas.width / 2, 180);
+  ctx.textAlign = "left";
+
+  if (particulesExplosion.length > 0) {
+    requestAnimationFrame(animerExplosion);
+  }
+}
+
 // ---------- FIN DE PARTIE ----------
 function terminerJeu() {
   arreterMusique();
@@ -659,22 +789,12 @@ function terminerJeu() {
     animerVictoire();
   } else {
     jouerPet();
-    dessinerEcranPerte();
+    jouerSonExplosion();
+    const cx = joueur.x + 40;
+    const cy = joueur.y + joueur.hauteur - 20;
+    creerExplosion(cx, cy);
+    animerExplosion();
   }
-}
-
-function dessinerEcranPerte() {
-  const points = pointsActuels();
-  dessinerFond(pointsTemps());
-  dessinerSol();
-  dessinerObstacles();
-  dessinerOiseaux();
-  dessinerJoueur();
-  ctx.fillStyle = "#222";
-  ctx.font = "30px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("Game Over - Score: " + points, canvas.width / 2, 180);
-  ctx.textAlign = "left";
 }
 
 function creerFeuArtifice() {
@@ -742,6 +862,7 @@ function animerVictoire() {
   requestAnimationFrame(animerVictoire);
 }
 
+// ---------- SCORE ET CHRONOMÈTRE ----------
 function dessinerScore() {
   ctx.fillStyle = "#333";
   ctx.font = "20px Arial";
@@ -761,6 +882,7 @@ function resetJeu() {
   joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
   obstacles = [];
   oiseaux = [];
+  passagesOiseaux = [];
   score = 0;
   bonusPoints = 0;
   jeuTermine = false;
@@ -774,8 +896,11 @@ function resetJeu() {
   prochainEclair = 400 + Math.random() * 300;
   sautsRestants = 2;
   dernierSpawnCompteur = -9999;
+  particulesExplosion = [];
+  flashExplosion = 0;
   planifierProchainObstacle();
   planifierProchainOiseau();
+  planifierProchainPassage();
   initDecor();
   demarrerMusique();
   boucle();
@@ -785,7 +910,6 @@ function maj() {
   joueur.vitesseY += gravite;
   joueur.y += joueur.vitesseY;
 
-  // Empêche de dépasser le haut du cadre (tient compte du plus grand des deux personnages)
   const limiteHaute = 0 - (hauteurMaxDuo() - joueur.hauteur);
   if (joueur.y < limiteHaute) {
     joueur.y = limiteHaute;
@@ -817,6 +941,10 @@ function maj() {
     }
     planifierProchainOiseau();
   }
+  if (compteur >= prochainPassage) {
+    creerPassageOiseaux();
+    planifierProchainPassage();
+  }
 
   deplacerObstacles();
   deplacerOiseaux();
@@ -833,6 +961,7 @@ function boucle() {
   if (jeuTermine) return;
 
   dessinerFond(pointsTemps());
+  deplacerEtDessinerPassages();
   maj();
 
   if (jeuTermine) return;
