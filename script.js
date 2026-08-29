@@ -64,33 +64,6 @@ function arreterMusique() {
   musiqueJeu.currentTime = 0;
 }
 
-function jouerPet() {
-  initAudio();
-  const dureeTotale = 1.3;
-  const nbSegments = 9;
-  let t = 0;
-  for (let i = 0; i < nbSegments; i++) {
-    const dureeSegment = dureeTotale / nbSegments;
-    const freqDepart = 140 - i * 8 + Math.random() * 20;
-    const freqFin = freqDepart * 0.4;
-    setTimeout(() => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(freqDepart, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(freqFin, 20), audioCtx.currentTime + dureeSegment);
-      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dureeSegment);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + dureeSegment);
-    }, t * 1000);
-    t += dureeSegment;
-  }
-}
-
-// Son d'explosion réaliste : détonation grave + craquement aigu + souffle + débris
 function jouerSonExplosion() {
   initAudio();
 
@@ -680,42 +653,39 @@ function verifierCollisionOiseaux() {
   }
 }
 
-// ---------- OISEAUX DU HAUT DU CADRE (obstacles à part entière) ----------
+// ---------- OISEAU DU HAUT DU CADRE (obstacle à part entière, un seul à la fois) ----------
 function planifierProchainPassage() {
   prochainPassage = compteur + 200 + Math.random() * 300;
 }
 
 function creerPassageOiseaux() {
-  const nb = 3 + Math.floor(Math.random() * 4);
-  const y = 15 + Math.random() * 20;
+  const y = 20 + Math.random() * 25;
   const vitesse = 2.5 + Math.random() * 1.5;
-  for (let i = 0; i < nb; i++) {
-    passagesOiseaux.push({
-      x: canvas.width + 50 + i * 22,
-      y,
-      vitesse,
-      envergure: 18,
-      decalageAnim: Math.random() * 100
-    });
-  }
+  passagesOiseaux.push({
+    x: canvas.width + 50,
+    y,
+    vitesse,
+    envergure: 42,
+    decalageAnim: Math.random() * 100
+  });
 }
 
 function deplacerEtDessinerPassages() {
   ctx.strokeStyle = "#2c2c2c";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3.5;
   ctx.lineCap = "round";
 
   passagesOiseaux.forEach(o => {
     o.x -= o.vitesse;
-    const battement = Math.sin((compteur + o.decalageAnim) / 6) * 4;
+    const battement = Math.sin((compteur + o.decalageAnim) / 6) * 9;
     ctx.beginPath();
-    ctx.moveTo(o.x - 6, o.y + battement);
-    ctx.lineTo(o.x, o.y - 2);
-    ctx.lineTo(o.x + 6, o.y + battement);
+    ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
+    ctx.lineTo(o.x, o.y - 5);
+    ctx.lineTo(o.x + o.envergure / 2, o.y + battement);
     ctx.stroke();
   });
 
-  passagesOiseaux = passagesOiseaux.filter(o => o.x > -20);
+  passagesOiseaux = passagesOiseaux.filter(o => o.x > -50);
 }
 
 function verifierCollisionPassages() {
@@ -999,7 +969,10 @@ function maj() {
     planifierProchainOiseau();
   }
   if (compteur >= prochainPassage) {
-    creerPassageOiseaux();
+    if (compteur - dernierSpawnCompteur >= ESPACEMENT_MIN) {
+      creerPassageOiseaux();
+      dernierSpawnCompteur = compteur;
+    }
     planifierProchainPassage();
   }
 
@@ -1043,7 +1016,11 @@ function boucle() {
 function sauter() {
   initAudio();
   if (jeuTermine) return;
-  joueur.vitesseY = -15;
+  if (joueur.surLeSol) {
+    joueur.vitesseY = -15;
+  } else {
+    joueur.vitesseY = -7.5;
+  }
 }
 
 document.addEventListener("keydown", (e) => {
