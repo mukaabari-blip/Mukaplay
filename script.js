@@ -4,10 +4,11 @@ const boutonRejouer = document.getElementById("boutonRejouer");
 const musiqueJeu = document.getElementById("musiqueJeu");
 
 const gravite = 0.8;
-const SOL_Y = 340;
 const POINTS_VICTOIRE = 5000;
 const VITESSE_BASE = 6;
 const ESPACEMENT_MIN = 55;
+
+let SOL_Y = 340;
 
 let joueur, obstacles, score, bonusPoints, jeuTermine, victoire, compteur, nuages, prochainObstacle;
 let vitesseDefilement = VITESSE_BASE;
@@ -27,6 +28,15 @@ let passagesOiseaux;
 let prochainPassage;
 let particulesExplosion = [];
 let flashExplosion = 0;
+
+// ---------- PLEIN ÉCRAN RESPONSIVE ----------
+function redimensionner() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  SOL_Y = Math.round(canvas.height * 0.72);
+}
+
+window.addEventListener("resize", redimensionner);
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -165,10 +175,10 @@ function jouerSonBonus() {
 function initDecor() {
   nuages = [];
   for (let i = 0; i < 4; i++) {
-    nuages.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * 80 });
+    nuages.push({ x: Math.random() * canvas.width, y: 30 + Math.random() * (canvas.height * 0.18) });
   }
   etoiles = [];
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     etoiles.push({
       x: Math.random() * canvas.width,
       y: Math.random() * (SOL_Y - 20),
@@ -176,7 +186,7 @@ function initDecor() {
     });
   }
   gouttesPluie = [];
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 160; i++) {
     gouttesPluie.push({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
@@ -200,8 +210,8 @@ function dessinerAstres(points) {
   const cyclePos = (((points % 1000) + 1000) % 1000) / 1000;
   const estJour = cyclePos < 0.5;
   const local = estJour ? cyclePos / 0.5 : (cyclePos - 0.5) / 0.5;
-  const x = 40 + local * 720;
-  const y = 90 - Math.sin(local * Math.PI) * 55;
+  const x = 60 + local * (canvas.width - 120);
+  const y = canvas.height * 0.18 - Math.sin(local * Math.PI) * (canvas.height * 0.12);
 
   if (estJour) {
     ctx.fillStyle = "#ffe066";
@@ -233,12 +243,14 @@ function dessinerFond(points) {
 
   dessinerAstres(points);
 
+  const w = canvas.width;
   ctx.fillStyle = "#a3d9a5";
   ctx.beginPath();
   ctx.moveTo(0, SOL_Y);
-  ctx.quadraticCurveTo(150, SOL_Y - 60, 300, SOL_Y);
-  ctx.quadraticCurveTo(450, SOL_Y - 40, 600, SOL_Y);
-  ctx.quadraticCurveTo(720, SOL_Y - 70, 800, SOL_Y);
+  ctx.quadraticCurveTo(w * 0.19, SOL_Y - 60, w * 0.375, SOL_Y);
+  ctx.quadraticCurveTo(w * 0.5625, SOL_Y - 40, w * 0.75, SOL_Y);
+  ctx.quadraticCurveTo(w * 0.9, SOL_Y - 70, w, SOL_Y);
+  ctx.lineTo(w, SOL_Y);
   ctx.closePath();
   ctx.fill();
 
@@ -653,7 +665,7 @@ function verifierCollisionOiseaux() {
   }
 }
 
-// ---------- OISEAU DU HAUT DU CADRE (obstacle à part entière, un seul à la fois) ----------
+// ---------- OISEAU DU HAUT DU CADRE ----------
 function planifierProchainPassage() {
   prochainPassage = compteur + 200 + Math.random() * 300;
 }
@@ -797,7 +809,7 @@ function animerExplosion() {
   ctx.fillStyle = "#fff";
   ctx.font = "30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Game Over - Score: " + pointsActuels(), canvas.width / 2, 180);
+  ctx.fillText("Game Over - Score: " + pointsActuels(), canvas.width / 2, canvas.height * 0.4);
   ctx.textAlign = "left";
 
   if (particulesExplosion.length > 0) {
@@ -825,8 +837,8 @@ function terminerJeu() {
 }
 
 function creerFeuArtifice() {
-  const cx = 200 + Math.random() * 400;
-  const cy = 80 + Math.random() * 150;
+  const cx = canvas.width * 0.25 + Math.random() * canvas.width * 0.5;
+  const cy = canvas.height * 0.15 + Math.random() * canvas.height * 0.3;
   const couleurs = ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"];
   const couleur = couleurs[Math.floor(Math.random() * couleurs.length)];
   const particules = [];
@@ -883,7 +895,7 @@ function animerVictoire() {
   ctx.fillStyle = "#222";
   ctx.font = "32px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Victoire ! Score: " + pointsActuels(), canvas.width / 2, 50);
+  ctx.fillText("Victoire ! Score: " + pointsActuels(), canvas.width / 2, canvas.height * 0.12);
   ctx.textAlign = "left";
 
   requestAnimationFrame(animerVictoire);
@@ -905,6 +917,7 @@ function dessinerScore() {
 
 // ---------- BOUCLE PRINCIPALE ----------
 function resetJeu() {
+  redimensionner();
   boutonRejouer.style.display = "none";
   joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
   obstacles = [];
