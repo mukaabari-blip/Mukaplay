@@ -90,21 +90,35 @@ function jouerPet() {
   }
 }
 
+// Son d'explosion réaliste : détonation grave + craquement aigu + souffle + débris
 function jouerSonExplosion() {
   initAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(80, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + 0.8);
-  gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.8);
 
-  const bufferSize = audioCtx.sampleRate * 0.6;
+  const boom = audioCtx.createOscillator();
+  const gainBoom = audioCtx.createGain();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(120, audioCtx.currentTime);
+  boom.frequency.exponentialRampToValueAtTime(25, audioCtx.currentTime + 0.6);
+  gainBoom.gain.setValueAtTime(0.5, audioCtx.currentTime);
+  gainBoom.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+  boom.connect(gainBoom);
+  gainBoom.connect(audioCtx.destination);
+  boom.start();
+  boom.stop(audioCtx.currentTime + 0.6);
+
+  const crack = audioCtx.createOscillator();
+  const gainCrack = audioCtx.createGain();
+  crack.type = "sawtooth";
+  crack.frequency.setValueAtTime(400, audioCtx.currentTime);
+  crack.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.15);
+  gainCrack.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gainCrack.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  crack.connect(gainCrack);
+  gainCrack.connect(audioCtx.destination);
+  crack.start();
+  crack.stop(audioCtx.currentTime + 0.15);
+
+  const bufferSize = audioCtx.sampleRate * 0.9;
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
@@ -113,10 +127,25 @@ function jouerSonExplosion() {
   const bruit = audioCtx.createBufferSource();
   bruit.buffer = buffer;
   const gainBruit = audioCtx.createGain();
-  gainBruit.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  gainBruit.gain.setValueAtTime(0.35, audioCtx.currentTime);
   bruit.connect(gainBruit);
   gainBruit.connect(audioCtx.destination);
   bruit.start();
+
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 100 + Math.random() * 200;
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }, 300 + i * 90 + Math.random() * 40);
+  }
 }
 
 function jouerSonPalier() {
@@ -551,13 +580,13 @@ function verifierCollision() {
   });
 }
 
-// ---------- OISEAUX ----------
+// ---------- OISEAUX (obstacles aériens, dont géants) ----------
 function planifierProchainOiseau() {
   prochainOiseau = compteur + 110 + Math.random() * 220;
 }
 
 function creerOiseau() {
-  const geant = Math.random() < 0.12;
+  const geant = Math.random() < 0.4;
   const hauteurVol = 100 + Math.random() * 140;
   oiseaux.push({
     x: canvas.width,
@@ -640,7 +669,7 @@ function verifierCollisionOiseaux() {
         oiseaux.splice(i, 1);
         joueur.vitesseY = -14;
         sautsRestants = 2;
-        bonusPoints += 300;
+        bonusPoints += o.geant ? 400 : 300;
         jouerSonBonus();
       } else {
         jeuTermine = true;
@@ -651,7 +680,7 @@ function verifierCollisionOiseaux() {
   }
 }
 
-// ---------- PASSAGES D'OISEAUX DÉCORATIFS ----------
+// ---------- OISEAUX DU HAUT DU CADRE (obstacles à part entière) ----------
 function planifierProchainPassage() {
   prochainPassage = compteur + 200 + Math.random() * 300;
 }
@@ -659,33 +688,62 @@ function planifierProchainPassage() {
 function creerPassageOiseaux() {
   const nb = 3 + Math.floor(Math.random() * 4);
   const y = 15 + Math.random() * 20;
-  const vitesse = 2 + Math.random();
-  const groupe = [];
+  const vitesse = 2.5 + Math.random() * 1.5;
   for (let i = 0; i < nb; i++) {
-    groupe.push({ decalageX: i * 22 + Math.random() * 8, decalageAnim: Math.random() * 100 });
+    passagesOiseaux.push({
+      x: canvas.width + 50 + i * 22,
+      y,
+      vitesse,
+      envergure: 18,
+      decalageAnim: Math.random() * 100
+    });
   }
-  passagesOiseaux.push({ x: canvas.width + 50, y, vitesse, groupe });
 }
 
 function deplacerEtDessinerPassages() {
-  ctx.strokeStyle = "rgba(60,60,70,0.5)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#2c2c2c";
+  ctx.lineWidth = 2;
   ctx.lineCap = "round";
 
-  passagesOiseaux.forEach(p => {
-    p.x -= p.vitesse;
-    p.groupe.forEach(oiseau => {
-      const bx = p.x - oiseau.decalageX;
-      const battement = Math.sin((compteur + oiseau.decalageAnim) / 6) * 4;
-      ctx.beginPath();
-      ctx.moveTo(bx - 6, p.y + battement);
-      ctx.lineTo(bx, p.y - 2);
-      ctx.lineTo(bx + 6, p.y + battement);
-      ctx.stroke();
-    });
+  passagesOiseaux.forEach(o => {
+    o.x -= o.vitesse;
+    const battement = Math.sin((compteur + o.decalageAnim) / 6) * 4;
+    ctx.beginPath();
+    ctx.moveTo(o.x - 6, o.y + battement);
+    ctx.lineTo(o.x, o.y - 2);
+    ctx.lineTo(o.x + 6, o.y + battement);
+    ctx.stroke();
   });
 
-  passagesOiseaux = passagesOiseaux.filter(p => p.x > -100);
+  passagesOiseaux = passagesOiseaux.filter(o => o.x > -20);
+}
+
+function verifierCollisionPassages() {
+  const margeJ = 5;
+  const gaucheJ = joueur.x + margeJ;
+  const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
+  const piedsJ = joueur.y + joueur.hauteur - 2;
+  const hautJ = piedsJ - hauteurMaxDuo() + 8;
+
+  passagesOiseaux.forEach(o => {
+    const margeO = 4;
+    const gaucheO = o.x - o.envergure / 2 + margeO;
+    const droiteO = o.x + o.envergure / 2 - margeO;
+    const hautO = o.y - o.envergure / 2;
+    const basO = o.y + o.envergure / 2;
+
+    if (
+      !jeuTermine &&
+      gaucheJ < droiteO &&
+      droiteJ > gaucheO &&
+      hautJ < basO &&
+      piedsJ > hautO
+    ) {
+      jeuTermine = true;
+      victoire = false;
+      terminerJeu();
+    }
+  });
 }
 
 // ---------- SCORE, TEMPS ET PALIERS ----------
@@ -788,7 +846,6 @@ function terminerJeu() {
     jouerFanfareVictoire();
     animerVictoire();
   } else {
-    jouerPet();
     jouerSonExplosion();
     const cx = joueur.x + 40;
     const cy = joueur.y + joueur.hauteur - 20;
@@ -951,6 +1008,7 @@ function maj() {
   deplacerNuages();
   verifierCollision();
   verifierCollisionOiseaux();
+  verifierCollisionPassages();
 
   if (!jeuTermine) score++;
 
