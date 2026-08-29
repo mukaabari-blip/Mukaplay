@@ -50,7 +50,6 @@ function arreterMusique() {
   musiqueJeu.currentTime = 0;
 }
 
-// Son de flatulence long et texturé (environ 1,3 seconde)
 function jouerPet() {
   initAudio();
   const dureeTotale = 1.3;
@@ -77,14 +76,12 @@ function jouerPet() {
   }
 }
 
-// Petit son aigu pour le scintillement de palier
 function jouerSonPalier() {
   initAudio();
   jouerNote(880, 0.15, "sine", 0.1);
   setTimeout(() => jouerNote(1174.66, 0.2, "sine", 0.1), 100);
 }
 
-// Fanfare de victoire
 function jouerFanfareVictoire() {
   initAudio();
   const notes = [
@@ -150,7 +147,7 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
 }
 
-// ---------- PERSONNAGES : duo, le second plus grand ----------
+// ---------- PERSONNAGES ----------
 function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
   const anim = Math.floor(compteur / 6) % 2;
   const h = 44 * echelle;
@@ -222,10 +219,9 @@ function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
 function dessinerJoueur() {
   const pieds = joueur.y + joueur.hauteur;
 
-  // Scintillement : les personnages clignotent (dessinés une frame sur deux)
   const enScintillement = compteur < scintillementFin;
   if (enScintillement && Math.floor(compteur / 4) % 2 === 0) {
-    return; // on saute le dessin cette frame pour créer l'effet de clignotement
+    return;
   }
 
   dessinerPersonnage(joueur.x, pieds, 1, "#3b82f6");
@@ -305,22 +301,19 @@ function pointsActuels() {
 function gererPaliers() {
   const points = pointsActuels();
 
-  // Vitesse : augmente légèrement tous les 500 points
   const palierVitesse = Math.floor(points / 500);
   if (palierVitesse > dernierPalierVitesse) {
     dernierPalierVitesse = palierVitesse;
     vitesseDefilement += 0.5;
   }
 
-  // Scintillement : à chaque multiple de 1000 (hors victoire finale)
   if (points > 0 && points % 1000 === 0 && points < POINTS_VICTOIRE) {
     if (scintillementFin < compteur) {
-      scintillementFin = compteur + 180; // 3 secondes à 60 fps
+      scintillementFin = compteur + 180;
       jouerSonPalier();
     }
   }
 
-  // Victoire à 5000 points
   if (points >= POINTS_VICTOIRE && !jeuTermine) {
     jeuTermine = true;
     victoire = true;
@@ -382,7 +375,6 @@ function animerVictoire() {
 
   dessinerFond();
 
-  // Feux d'artifice (dessinés avant le zoom, en fond)
   feuxArtifice.forEach(f => {
     ctx.fillStyle = f.couleur;
     f.particules.forEach(p => {
@@ -402,7 +394,6 @@ function animerVictoire() {
 
   dessinerSol();
 
-  // Zoom centré sur le duo de personnages
   const pieds = joueur.y + joueur.hauteur;
   const centreX = joueur.x + 40;
   const centreY = pieds - 40;
@@ -483,7 +474,7 @@ function boucle() {
   dessinerFond();
   maj();
 
-  if (jeuTermine) return; // évite un dessin de trop après victoire/perte détectée dans maj()
+  if (jeuTermine) return;
 
   dessinerSol();
   dessinerObstacles();
