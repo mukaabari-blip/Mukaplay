@@ -7,8 +7,9 @@ const gravite = 0.8;
 const SOL_Y = 340;
 const POINTS_VICTOIRE = 5000;
 const VITESSE_BASE = 6;
+const ESPACEMENT_MIN = 55; // frames minimum entre deux dangers (sol ou air)
 
-let joueur, obstacles, score, jeuTermine, victoire, compteur, nuages, prochainObstacle;
+let joueur, obstacles, score, bonusPoints, jeuTermine, victoire, compteur, nuages, prochainObstacle;
 let vitesseDefilement = VITESSE_BASE;
 let scintillementFin = 0;
 let feuxArtifice = [];
@@ -20,6 +21,8 @@ let prochainEclair = 0;
 let sautsRestants = 2;
 let oiseaux;
 let prochainOiseau;
+let dernierSpawnCompteur = -9999;
+let luminositeGlobale = 1;
 
 // ---------- AUDIO ----------
 let audioCtx;
@@ -101,7 +104,30 @@ function jouerFanfareVictoire() {
   });
 }
 
-// ---------- DÉCOR : cycle jour/nuit ----------
+// Son de pièce gagnée + applaudissements, joué en cas de rebond sur un oiseau
+function jouerSonBonus() {
+  initAudio();
+  const notesPieces = [1046.5, 1318.51, 1567.98];
+  notesPieces.forEach((f, i) => {
+    setTimeout(() => jouerNote(f, 0.12, "square", 0.1), i * 70);
+  });
+  for (let i = 0; i < 16; i++) {
+    setTimeout(() => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 200 + Math.random() * 500;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    }, 220 + i * 35 + Math.random() * 20);
+  }
+}
+
+// ---------- DÉCOR : cycle jour/nuit avec astres en mouvement ----------
 function initDecor() {
   nuages = [];
   for (let i = 0; i < 4; i++) {
@@ -136,8 +162,35 @@ function calculerLuminosite(points) {
   return (1 + Math.cos((2 * Math.PI * points) / 1000)) / 2;
 }
 
+// Soleil et lune se déplacent en arc, synchronisés avec le cycle jour/nuit
+function dessinerAstres(points) {
+  const cyclePos = (((points % 1000) + 1000) % 1000) / 1000; // 0 -> 1
+  const estJour = cyclePos < 0.5;
+  const local = estJour ? cyclePos / 0.5 : (cyclePos - 0.5) / 0.5; // 0 -> 1 dans la demi-phase
+  const x = 40 + local * 720;
+  const y = 90 - Math.sin(local * Math.PI) * 55;
+
+  if (estJour) {
+    ctx.fillStyle = "#ffe066";
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = "#e8e8f0";
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#c9c9d6";
+    ctx.beginPath();
+    ctx.arc(x - 7, y - 4, 4, 0, Math.PI * 2);
+    ctx.arc(x + 5, y + 6, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function dessinerFond(points) {
   const luminosite = calculerLuminosite(points);
+  luminositeGlobale = luminosite;
 
   const degrade = ctx.createLinearGradient(0, 0, 0, canvas.height);
   degrade.addColorStop(0, "#87CEEB");
@@ -145,19 +198,7 @@ function dessinerFond(points) {
   ctx.fillStyle = degrade;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.globalAlpha = luminosite;
-  ctx.fillStyle = "#ffe066";
-  ctx.beginPath();
-  ctx.arc(700, 60, 30, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  ctx.globalAlpha = 1 - luminosite;
-  ctx.fillStyle = "#e8e8f0";
-  ctx.beginPath();
-  ctx.arc(700, 60, 24, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  dessinerAstres(points);
 
   ctx.fillStyle = "#a3d9a5";
   ctx.beginPath();
@@ -196,6 +237,19 @@ function dessinerSol() {
   ctx.fillRect(0, SOL_Y, canvas.width, canvas.height - SOL_Y);
   ctx.fillStyle = "#4a6b1f";
   ctx.fillRect(0, SOL_Y, canvas.width, 6);
+}
+
+// Halo lumineux ajouté derrière les dangers quand il fait nuit, pour rester bien visibles
+function dessinerHalo(x, y, rayon) {
+  const intensite = Math.max(0, (0.45 - luminositeGlobale) / 0.45);
+  if (intensite <= 0) return;
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, rayon);
+  gradient.addColorStop(0, `rgba(255,240,180,${0.55 * intensite})`);
+  gradient.addColorStop(1, "rgba(255,240,180,0)");
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, rayon, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // ---------- MÉTÉO ----------
@@ -301,6 +355,9 @@ function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
   ctx.stroke();
 }
 
+function largeurTotaleDuo() { return 26 + 42 * 1.4; }
+function hauteurMaxDuo() { return 44 * 1.4; }
+
 function dessinerJoueur() {
   const pieds = joueur.y + joueur.hauteur;
 
@@ -313,42 +370,41 @@ function dessinerJoueur() {
   dessinerPersonnage(joueur.x + 26, pieds, 1.4, "#ef4444");
 }
 
-// ---------- OBSTACLES (dont zombies) ----------
+// ---------- OBSTACLES (rochers, pics, caisses, zombies, zombies géants) ----------
 function planifierProchainObstacle() {
-  prochainObstacle = compteur + 50 + Math.random() * 170;
+  prochainObstacle = compteur + 60 + Math.random() * 180;
+}
+
+function typeAleatoireObstacle() {
+  const r = Math.random();
+  if (r < 0.07) return "zombieGeant";
+  if (r < 0.28) return "zombie";
+  if (r < 0.52) return "rocher";
+  if (r < 0.78) return "pic";
+  return "caisse";
 }
 
 function creerObstacle() {
-  const types = ["rocher", "pic", "caisse", "zombie"];
-  const type = types[Math.floor(Math.random() * types.length)];
-  const taille = type === "zombie" ? 34 + Math.random() * 8 : 25 + Math.random() * 15;
+  const type = typeAleatoireObstacle();
+  let taille;
+  if (type === "zombieGeant") taille = 130 + Math.random() * 30;
+  else if (type === "zombie") taille = 36 + Math.random() * 8;
+  else taille = 25 + Math.random() * 15;
   obstacles.push({ x: canvas.width, type, taille, decalage: Math.random() * 100 });
 }
 
-function dessinerZombie(x, taille, decalage) {
-  const balancement = Math.sin((compteur + decalage) / 8) * 3;
+function dessinerZombie(x, taille, decalage, geant) {
+  const balancement = Math.sin((compteur + decalage) / 8) * (geant ? 5 : 3);
   const hautZ = SOL_Y - taille;
+  const couleurPeau = geant ? "#3d5a35" : "#6b9457";
+  const couleurVetement = geant ? "#2b2b2b" : "#4a4a4a";
 
-  ctx.fillStyle = "#5a7a4a";
-  ctx.fillRect(x - taille / 3, hautZ + taille * 0.35, taille / 1.5, taille * 0.5);
+  dessinerHalo(x, hautZ + taille * 0.5, taille * 0.9);
 
-  ctx.fillStyle = "#8faa7a";
-  ctx.beginPath();
-  ctx.arc(x, hautZ + taille * 0.18, taille * 0.18, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = "#5a7a4a";
-  ctx.lineWidth = taille * 0.12;
+  // Jambes
+  ctx.strokeStyle = "#2a2a2a";
+  ctx.lineWidth = taille * 0.14;
   ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(x - taille / 3, hautZ + taille * 0.45);
-  ctx.lineTo(x - taille / 2 - balancement, hautZ + taille * 0.3);
-  ctx.moveTo(x + taille / 3, hautZ + taille * 0.45);
-  ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.3);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#3a3a3a";
-  ctx.lineWidth = taille * 0.15;
   ctx.beginPath();
   ctx.moveTo(x - taille / 5, hautZ + taille * 0.85);
   ctx.lineTo(x - taille / 5, SOL_Y);
@@ -356,21 +412,71 @@ function dessinerZombie(x, taille, decalage) {
   ctx.lineTo(x + taille / 5, SOL_Y);
   ctx.stroke();
 
-  ctx.fillStyle = "#c0392b";
+  // Torse déchiré
+  ctx.fillStyle = couleurVetement;
+  ctx.fillRect(x - taille / 3, hautZ + taille * 0.32, taille / 1.5, taille * 0.55);
+  ctx.fillStyle = couleurPeau;
   ctx.beginPath();
-  ctx.arc(x - taille * 0.05, hautZ + taille * 0.15, taille * 0.03, 0, Math.PI * 2);
-  ctx.arc(x + taille * 0.08, hautZ + taille * 0.2, taille * 0.03, 0, Math.PI * 2);
+  ctx.moveTo(x - taille * 0.15, hautZ + taille * 0.5);
+  ctx.lineTo(x - taille * 0.05, hautZ + taille * 0.62);
+  ctx.lineTo(x - taille * 0.2, hautZ + taille * 0.7);
+  ctx.closePath();
   ctx.fill();
+
+  // Bras qui se balancent
+  ctx.strokeStyle = couleurPeau;
+  ctx.lineWidth = taille * 0.1;
+  ctx.beginPath();
+  ctx.moveTo(x - taille / 3, hautZ + taille * 0.42);
+  ctx.lineTo(x - taille / 2 - balancement, hautZ + taille * 0.25);
+  ctx.moveTo(x + taille / 3, hautZ + taille * 0.42);
+  ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.25);
+  ctx.stroke();
+
+  // Tête
+  ctx.fillStyle = couleurPeau;
+  ctx.beginPath();
+  ctx.arc(x, hautZ + taille * 0.16, taille * 0.19, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Yeux rouges lumineux
+  ctx.fillStyle = "#ff3b30";
+  ctx.beginPath();
+  ctx.arc(x - taille * 0.06, hautZ + taille * 0.13, taille * 0.035, 0, Math.PI * 2);
+  ctx.arc(x + taille * 0.08, hautZ + taille * 0.18, taille * 0.035, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bouche entrouverte
+  ctx.strokeStyle = "#1a1a1a";
+  ctx.lineWidth = taille * 0.02;
+  ctx.beginPath();
+  ctx.arc(x + taille * 0.01, hautZ + taille * 0.22, taille * 0.05, 0, Math.PI);
+  ctx.stroke();
+
+  if (geant) {
+    // Couronne d'épines pour bien signaler le danger renforcé
+    ctx.fillStyle = "#1a1a1a";
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + i * taille * 0.06, hautZ - taille * 0.02);
+      ctx.lineTo(x + i * taille * 0.06 - 3, hautZ + taille * 0.08);
+      ctx.lineTo(x + i * taille * 0.06 + 3, hautZ + taille * 0.08);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
 }
 
 function dessinerObstacles() {
   obstacles.forEach(o => {
     if (o.type === "rocher") {
+      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
       ctx.fillStyle = "#7a6a58";
       ctx.beginPath();
       ctx.arc(o.x, SOL_Y - o.taille / 2, o.taille / 2, 0, Math.PI * 2);
       ctx.fill();
     } else if (o.type === "pic") {
+      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
       ctx.fillStyle = "#5a5a5a";
       ctx.beginPath();
       ctx.moveTo(o.x - o.taille / 2, SOL_Y);
@@ -379,8 +485,11 @@ function dessinerObstacles() {
       ctx.closePath();
       ctx.fill();
     } else if (o.type === "zombie") {
-      dessinerZombie(o.x, o.taille, o.decalage);
+      dessinerZombie(o.x, o.taille, o.decalage, false);
+    } else if (o.type === "zombieGeant") {
+      dessinerZombie(o.x, o.taille, o.decalage, true);
     } else {
+      dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
       ctx.fillStyle = "#8b5a2b";
       ctx.fillRect(o.x - o.taille / 2, SOL_Y - o.taille, o.taille, o.taille);
     }
@@ -392,24 +501,26 @@ function deplacerObstacles() {
   obstacles = obstacles.filter(o => o.x + o.taille > 0);
 }
 
+// Hitbox resserrée : marge de tolérance pour n'éliminer qu'en cas de contact réel
 function verifierCollision() {
-  const largeurTotale = 26 + 42 * 1.4;
-  const hauteurMax = 44 * 1.4;
+  const margeJ = 5;
+  const gaucheJ = joueur.x + margeJ;
+  const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
+  const piedsJ = joueur.y + joueur.hauteur - 2;
+  const hautJ = piedsJ - hauteurMaxDuo() + 8;
 
   obstacles.forEach(o => {
-    const oGauche = o.x - o.taille / 2;
-    const oDroite = o.x + o.taille / 2;
-    const oHaut = SOL_Y - o.taille;
-
-    const pieds = joueur.y + joueur.hauteur;
-    const hautDuo = pieds - hauteurMax;
+    const margeO = o.type === "zombieGeant" ? 10 : 6;
+    const oGauche = o.x - o.taille / 2 + margeO;
+    const oDroite = o.x + o.taille / 2 - margeO;
+    const oHaut = SOL_Y - o.taille + 4;
 
     if (
       !jeuTermine &&
-      joueur.x < oDroite &&
-      joueur.x + largeurTotale > oGauche &&
-      hautDuo < SOL_Y &&
-      pieds > oHaut
+      gaucheJ < oDroite &&
+      droiteJ > oGauche &&
+      hautJ < SOL_Y &&
+      piedsJ > oHaut
     ) {
       jeuTermine = true;
       victoire = false;
@@ -418,9 +529,9 @@ function verifierCollision() {
   });
 }
 
-// ---------- OISEAUX (obstacles aériens) ----------
+// ---------- OISEAUX (obstacles aériens, écrasables par-dessus) ----------
 function planifierProchainOiseau() {
-  prochainOiseau = compteur + 100 + Math.random() * 200;
+  prochainOiseau = compteur + 110 + Math.random() * 220;
 }
 
 function creerOiseau() {
@@ -428,59 +539,100 @@ function creerOiseau() {
   oiseaux.push({
     x: canvas.width,
     y: SOL_Y - hauteurVol,
-    envergure: 22 + Math.random() * 10,
+    envergure: 40 + Math.random() * 16,
     decalage: Math.random() * 100
   });
 }
 
 function dessinerOiseaux() {
-  ctx.strokeStyle = "#2c2c2c";
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
   oiseaux.forEach(o => {
-    const battement = Math.sin((compteur + o.decalage) / 5) * 8;
+    dessinerHalo(o.x, o.y, o.envergure * 0.9);
+
+    const battement = Math.sin((compteur + o.decalage) / 5) * 10;
+
+    // Corps
+    ctx.fillStyle = "#4a5b6e";
+    ctx.beginPath();
+    ctx.ellipse(o.x, o.y, o.envergure * 0.28, o.envergure * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ailes
+    ctx.strokeStyle = "#2c3a47";
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(o.x - o.envergure / 2, o.y + battement);
-    ctx.lineTo(o.x, o.y - 4);
-    ctx.lineTo(o.x + o.envergure / 2, o.y + battement);
+    ctx.quadraticCurveTo(o.x - o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
+    ctx.moveTo(o.x + o.envergure / 2, o.y + battement);
+    ctx.quadraticCurveTo(o.x + o.envergure * 0.15, o.y - battement * 0.6, o.x, o.y - 3);
     ctx.stroke();
+
+    // Tête et bec
+    ctx.fillStyle = "#4a5b6e";
+    ctx.beginPath();
+    ctx.arc(o.x + o.envergure * 0.22, o.y - o.envergure * 0.06, o.envergure * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f5a623";
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.envergure * 0.32, o.y - o.envergure * 0.06);
+    ctx.lineTo(o.x + o.envergure * 0.42, o.y - o.envergure * 0.02);
+    ctx.lineTo(o.x + o.envergure * 0.32, o.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Œil
+    ctx.fillStyle = "#111";
+    ctx.beginPath();
+    ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, 1.6, 0, Math.PI * 2);
+    ctx.fill();
   });
 }
 
 function deplacerOiseaux() {
-  oiseaux.forEach(o => o.x -= vitesseDefilement * 1.2);
+  oiseaux.forEach(o => o.x -= vitesseDefilement * 1.15);
   oiseaux = oiseaux.filter(o => o.x + o.envergure > 0);
 }
 
+// Un contact par-dessus (en train de retomber) fait rebondir + bonus ; un contact de côté élimine
 function verifierCollisionOiseaux() {
-  const largeurTotale = 26 + 42 * 1.4;
-  const hauteurMax = 44 * 1.4;
-  const pieds = joueur.y + joueur.hauteur;
-  const hautDuo = pieds - hauteurMax;
+  const margeJ = 5;
+  const gaucheJ = joueur.x + margeJ;
+  const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
+  const piedsJ = joueur.y + joueur.hauteur - 2;
+  const hautJ = piedsJ - hauteurMaxDuo() + 8;
 
-  oiseaux.forEach(o => {
-    const oGauche = o.x - o.envergure / 2;
-    const oDroite = o.x + o.envergure / 2;
-    const oHaut = o.y - 10;
-    const oBas = o.y + 10;
+  for (let i = oiseaux.length - 1; i >= 0; i--) {
+    const o = oiseaux[i];
+    const margeO = 6;
+    const gaucheO = o.x - o.envergure / 2 + margeO;
+    const droiteO = o.x + o.envergure / 2 - margeO;
+    const hautO = o.y - o.envergure * 0.22;
+    const basO = o.y + o.envergure * 0.22;
 
-    if (
-      !jeuTermine &&
-      joueur.x < oDroite &&
-      joueur.x + largeurTotale > oGauche &&
-      hautDuo < oBas &&
-      pieds > oHaut
-    ) {
-      jeuTermine = true;
-      victoire = false;
-      terminerJeu();
+    const chevaucheX = gaucheJ < droiteO && droiteJ > gaucheO;
+    const chevaucheY = hautJ < basO && piedsJ > hautO;
+
+    if (!jeuTermine && chevaucheX && chevaucheY) {
+      const estRebond = joueur.vitesseY > 0 && (piedsJ - o.y) < o.envergure * 0.3;
+
+      if (estRebond) {
+        oiseaux.splice(i, 1);
+        joueur.vitesseY = -14;
+        sautsRestants = 2;
+        bonusPoints += 300;
+        jouerSonBonus();
+      } else {
+        jeuTermine = true;
+        victoire = false;
+        terminerJeu();
+      }
     }
-  });
+  }
 }
 
 // ---------- PALIERS ET VITESSE ----------
 function pointsActuels() {
-  return Math.floor(score / 10);
+  return Math.floor(score / 10) + bonusPoints;
 }
 
 function gererVitesse(points) {
@@ -623,6 +775,7 @@ function resetJeu() {
   obstacles = [];
   oiseaux = [];
   score = 0;
+  bonusPoints = 0;
   jeuTermine = false;
   victoire = false;
   compteur = 0;
@@ -633,6 +786,7 @@ function resetJeu() {
   eclairAlpha = 0;
   prochainEclair = 400 + Math.random() * 300;
   sautsRestants = 2;
+  dernierSpawnCompteur = -9999;
   planifierProchainObstacle();
   planifierProchainOiseau();
   initDecor();
@@ -654,12 +808,20 @@ function maj() {
   }
 
   compteur++;
+
+  // Espacement garanti entre deux dangers (sol ou air), pour éviter les situations infranchissables
   if (compteur >= prochainObstacle) {
-    creerObstacle();
+    if (compteur - dernierSpawnCompteur >= ESPACEMENT_MIN) {
+      creerObstacle();
+      dernierSpawnCompteur = compteur;
+    }
     planifierProchainObstacle();
   }
   if (compteur >= prochainOiseau) {
-    creerOiseau();
+    if (compteur - dernierSpawnCompteur >= ESPACEMENT_MIN) {
+      creerOiseau();
+      dernierSpawnCompteur = compteur;
+    }
     planifierProchainOiseau();
   }
 
