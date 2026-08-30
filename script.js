@@ -3,12 +3,17 @@ const ctx = canvas.getContext("2d");
 const boutonRejouer = document.getElementById("boutonRejouer");
 const musiqueJeu = document.getElementById("musiqueJeu");
 
-const gravite = 0.8;
+const GRAVITE_BASE = 0.8;
+const SAUT_BASE = -15;
 const POINTS_VICTOIRE = 5000;
 const VITESSE_BASE = 6;
 const ESPACEMENT_MIN = 55;
+const HAUTEUR_REFERENCE = 700; // sert de base pour garder les proportions verticales identiques
 
 let SOL_Y = 340;
+let echelleV = 1;
+let gravite = GRAVITE_BASE;
+let sautForce = SAUT_BASE;
 
 let joueur, obstacles, score, bonusPoints, jeuTermine, victoire, compteur, nuages, prochainObstacle;
 let vitesseDefilement = VITESSE_BASE;
@@ -34,18 +39,19 @@ let montagnes;
 let debris = [];
 let echelleGeant = 1;
 
-// Pouvoir "dragon" : géant, invincible
 let joueurGeant = false;
 let joueurGeantFin = 0;
 let joueurInvincible = false;
-let joueurAiles = false;
 let clignoteFin = 0;
 
-// ---------- PLEIN ÉCRAN RESPONSIVE ----------
+// ---------- PLEIN ÉCRAN RESPONSIVE, proportions verticales fixes ----------
 function redimensionner() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   SOL_Y = Math.round(canvas.height * 0.72);
+  echelleV = canvas.height / HAUTEUR_REFERENCE;
+  gravite = GRAVITE_BASE * echelleV;
+  sautForce = SAUT_BASE * echelleV;
 }
 
 window.addEventListener("resize", redimensionner);
@@ -288,6 +294,7 @@ function calculerLuminosite(points) {
   return (1 + Math.cos((2 * Math.PI * points) / 1000)) / 2;
 }
 
+// Soleil et lune au même endroit, fondu naturel via l'opacité de la luminosité
 function dessinerAstres(points) {
   const cyclePos = (((points % 1000) + 1000) % 1000) / 1000;
   const estJour = cyclePos < 0.5;
@@ -295,7 +302,12 @@ function dessinerAstres(points) {
   const x = 60 + local * (canvas.width - 120);
   const y = canvas.height * 0.18 - Math.sin(local * Math.PI) * (canvas.height * 0.12);
 
-  if (estJour) {
+  const alphaSoleil = luminositeGlobale;
+  const alphaLune = 1 - luminositeGlobale;
+
+  if (alphaSoleil > 0.02) {
+    ctx.save();
+    ctx.globalAlpha = alphaSoleil;
     const glow = ctx.createRadialGradient(x, y, 5, x, y, 55);
     glow.addColorStop(0, "rgba(255,235,150,0.55)");
     glow.addColorStop(1, "rgba(255,235,150,0)");
@@ -307,7 +319,12 @@ function dessinerAstres(points) {
     ctx.beginPath();
     ctx.arc(x, y, 26, 0, Math.PI * 2);
     ctx.fill();
-  } else {
+    ctx.restore();
+  }
+
+  if (alphaLune > 0.02) {
+    ctx.save();
+    ctx.globalAlpha = alphaLune;
     ctx.fillStyle = "#e8e8f0";
     ctx.beginPath();
     ctx.arc(x, y, 22, 0, Math.PI * 2);
@@ -317,6 +334,7 @@ function dessinerAstres(points) {
     ctx.arc(x - 7, y - 4, 4, 0, Math.PI * 2);
     ctx.arc(x + 5, y + 6, 3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -496,73 +514,129 @@ function gererEclairs(points) {
   }
 }
 
-// ---------- PERSONNAGES ----------
+// ---------- PERSONNAGES (vue de profil, en train de courir) ----------
 function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
-  const anim = Math.floor(compteur / 6) % 2;
   const h = 44 * echelle;
   const y = pieds - h;
+  const enAir = !joueur.surLeSol;
+  const swing = Math.sin(compteur / 5.5);
 
-  ctx.strokeStyle = "#3b2f2f";
-  ctx.lineWidth = 3 * echelle;
+  let legFrontSwing, legBackSwing, armSwing;
+  if (enAir) {
+    legFrontSwing = 7 * echelle;
+    legBackSwing = -5 * echelle;
+    armSwing = 6 * echelle;
+  } else {
+    legFrontSwing = swing * 12 * echelle;
+    legBackSwing = -swing * 12 * echelle;
+    armSwing = -swing * 9 * echelle;
+  }
+
   ctx.lineCap = "round";
 
-  ctx.fillStyle = "#f1c27d";
-  ctx.beginPath();
-  ctx.arc(x + 15 * echelle, y + 10 * echelle, 9 * echelle, 0, Math.PI * 2);
-  ctx.fill();
+  // Sac à dos bleu (dans le dos, côté gauche puisque le personnage regarde vers la droite)
+  ctx.fillStyle = "#2563eb";
+  ctx.fillRect(x + 1 * echelle, y + 16 * echelle, 9 * echelle, 15 * echelle);
+  ctx.fillStyle = "#1d4ed8";
+  ctx.fillRect(x + 1 * echelle, y + 16 * echelle, 9 * echelle, 3 * echelle);
 
+  // Jambe arrière
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 4 * echelle;
+  ctx.beginPath();
+  ctx.moveTo(x + 11 * echelle, y + 31 * echelle);
+  ctx.lineTo(x + 11 * echelle + legBackSwing, y + 43 * echelle);
+  ctx.stroke();
   ctx.fillStyle = "#3b2f2f";
   ctx.beginPath();
-  ctx.moveTo(x + 10 * echelle, y + 3 * echelle);
-  ctx.quadraticCurveTo(x + 12 * echelle, y - 8 * echelle, x + 16 * echelle, y - 2 * echelle);
-  ctx.quadraticCurveTo(x + 18 * echelle, y - 9 * echelle, x + 21 * echelle, y - 1 * echelle);
-  ctx.quadraticCurveTo(x + 20 * echelle, y + 3 * echelle, x + 15 * echelle, y + 2 * echelle);
+  ctx.arc(x + 11 * echelle + legBackSwing, y + 44 * echelle, 2.5 * echelle, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bras arrière
+  ctx.strokeStyle = couleurShirt;
+  ctx.lineWidth = 3 * echelle;
+  ctx.beginPath();
+  ctx.moveTo(x + 13 * echelle, y + 19 * echelle);
+  ctx.lineTo(x + 13 * echelle - armSwing, y + 29 * echelle);
+  ctx.stroke();
+
+  // Torse
+  ctx.fillStyle = couleurShirt;
+  ctx.beginPath();
+  ctx.moveTo(x + 6 * echelle, y + 17 * echelle);
+  ctx.lineTo(x + 21 * echelle, y + 15 * echelle);
+  ctx.lineTo(x + 20 * echelle, y + 29 * echelle);
+  ctx.lineTo(x + 7 * echelle, y + 30 * echelle);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "#222";
+  // Short noir
+  ctx.fillStyle = "#161616";
   ctx.beginPath();
-  ctx.arc(x + 12 * echelle, y + 9 * echelle, 1.3 * echelle, 0, Math.PI * 2);
-  ctx.arc(x + 18 * echelle, y + 9 * echelle, 1.3 * echelle, 0, Math.PI * 2);
+  ctx.moveTo(x + 7 * echelle, y + 28 * echelle);
+  ctx.lineTo(x + 20 * echelle, y + 27 * echelle);
+  ctx.lineTo(x + 19 * echelle, y + 34 * echelle);
+  ctx.lineTo(x + 8 * echelle, y + 34 * echelle);
+  ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = couleurShirt;
-  ctx.fillRect(x + 8 * echelle, y + 18 * echelle, 14 * echelle, 14 * echelle);
-
-  ctx.strokeStyle = couleurShirt;
-  ctx.beginPath();
-  ctx.moveTo(x + 15 * echelle, y + 20 * echelle);
-  ctx.lineTo(x + 4 * echelle, y + 28 * echelle);
-  ctx.moveTo(x + 15 * echelle, y + 20 * echelle);
-  ctx.lineTo(x + 26 * echelle, y + 28 * echelle);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#3b2f2f";
-  ctx.beginPath();
-  ctx.moveTo(x + 15 * echelle, y + 19 * echelle);
-  ctx.lineTo(x + 15 * echelle, y + 32 * echelle);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#8b5a2b";
+  // Jambe avant
+  ctx.strokeStyle = "#111";
   ctx.lineWidth = 4 * echelle;
   ctx.beginPath();
-  if (!joueur.surLeSol) {
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 8 * echelle, y + 42 * echelle);
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 22 * echelle, y + 42 * echelle);
-  } else if (anim === 0) {
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 6 * echelle, y + 44 * echelle);
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 22 * echelle, y + 44 * echelle);
-  } else {
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 8 * echelle, y + 44 * echelle);
-    ctx.moveTo(x + 15 * echelle, y + 32 * echelle);
-    ctx.lineTo(x + 24 * echelle, y + 44 * echelle);
-  }
+  ctx.moveTo(x + 15 * echelle, y + 33 * echelle);
+  ctx.lineTo(x + 15 * echelle + legFrontSwing, y + 44 * echelle);
   ctx.stroke();
+  ctx.fillStyle = "#3b2f2f";
+  ctx.beginPath();
+  ctx.arc(x + 15 * echelle + legFrontSwing, y + 44 * echelle, 2.5 * echelle, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bras avant
+  ctx.strokeStyle = couleurShirt;
+  ctx.lineWidth = 3 * echelle;
+  ctx.beginPath();
+  ctx.moveTo(x + 18 * echelle, y + 18 * echelle);
+  ctx.lineTo(x + 18 * echelle + armSwing, y + 28 * echelle);
+  ctx.stroke();
+
+  // Cou
+  ctx.strokeStyle = "#f1c27d";
+  ctx.lineWidth = 4 * echelle;
+  ctx.beginPath();
+  ctx.moveTo(x + 18 * echelle, y + 14 * echelle);
+  ctx.lineTo(x + 18 * echelle, y + 17 * echelle);
+  ctx.stroke();
+
+  // Tête (profil, regarde vers la droite)
+  ctx.fillStyle = "#f1c27d";
+  ctx.beginPath();
+  ctx.arc(x + 17 * echelle, y + 8 * echelle, 8 * echelle, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Nez
+  ctx.beginPath();
+  ctx.moveTo(x + 24 * echelle, y + 7 * echelle);
+  ctx.lineTo(x + 28 * echelle, y + 8.5 * echelle);
+  ctx.lineTo(x + 24 * echelle, y + 10 * echelle);
+  ctx.closePath();
+  ctx.fill();
+
+  // Touffe de cheveux
+  ctx.fillStyle = "#3b2f2f";
+  ctx.beginPath();
+  ctx.moveTo(x + 9 * echelle, y + 2 * echelle);
+  ctx.quadraticCurveTo(x + 13 * echelle, y - 8 * echelle, x + 18 * echelle, y - 1 * echelle);
+  ctx.quadraticCurveTo(x + 20 * echelle, y - 6 * echelle, x + 23 * echelle, y + 1 * echelle);
+  ctx.quadraticCurveTo(x + 19 * echelle, y + 2.5 * echelle, x + 9 * echelle, y + 2 * echelle);
+  ctx.closePath();
+  ctx.fill();
+
+  // Œil (profil, un seul visible)
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(x + 21 * echelle, y + 7 * echelle, 1.3 * echelle, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function creerDebris(x, y, taille, couleur) {
@@ -603,19 +677,18 @@ function majEtDessinerDebris() {
 
 function couleurObstacle(type) {
   if (type === "rocher") return "#8a7a68";
-  if (type === "pic") return "#5a5a5a";
   if (type === "zombie") return "#6b9457";
   if (type === "zombieGeant") return "#3d5a35";
   return "#8b5a2b";
 }
 
 function multiplicateurGeant() { return echelleGeant; }
-function largeurTotaleDuo() { return (26 + 42 * 1.4) * multiplicateurGeant(); }
-function hauteurMaxDuo() { return (44 * 1.4) * multiplicateurGeant(); }
+function largeurTotaleDuo() { return (26 + 42 * 1.4) * multiplicateurGeant() * echelleV; }
+function hauteurMaxDuo() { return (44 * 1.4) * multiplicateurGeant() * echelleV; }
 
 function dessinerJoueur() {
   const pieds = joueur.y + joueur.hauteur;
-  const mult = multiplicateurGeant();
+  const mult = multiplicateurGeant() * echelleV;
 
   const enScintillement = compteur < scintillementFin;
   if (enScintillement && Math.floor(compteur / 4) % 2 === 0) {
@@ -650,19 +723,18 @@ function planifierProchainObstacle() {
 
 function typeAleatoireObstacle() {
   const r = Math.random();
-  if (r < 0.20) return "zombieGeant";
-  if (r < 0.38) return "zombie";
-  if (r < 0.58) return "rocher";
-  if (r < 0.80) return "pic";
+  if (r < 0.24) return "zombieGeant";
+  if (r < 0.47) return "zombie";
+  if (r < 0.74) return "rocher";
   return "caisse";
 }
 
 function creerObstacle() {
   const type = typeAleatoireObstacle();
   let taille;
-  if (type === "zombieGeant") taille = 130 + Math.random() * 30;
-  else if (type === "zombie") taille = 36 + Math.random() * 8;
-  else taille = 25 + Math.random() * 15;
+  if (type === "zombieGeant") taille = (130 + Math.random() * 30) * echelleV;
+  else if (type === "zombie") taille = (36 + Math.random() * 8) * echelleV;
+  else taille = (25 + Math.random() * 15) * echelleV;
   obstacles.push({ x: canvas.width, type, taille, decalage: Math.random() * 100 });
 }
 
@@ -783,11 +855,6 @@ function dessinerZombie(x, taille, decalage, geant) {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.strokeStyle = `rgba(120,0,0,${0.3 + 0.2 * Math.sin(compteur / 10)})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, hautZ + taille * 0.45, taille * 0.55, 0, Math.PI * 2);
-    ctx.stroke();
   }
 }
 
@@ -808,27 +875,6 @@ function dessinerRocher(o) {
   ctx.lineTo(o.x + o.taille * 0.05, cy + o.taille * 0.15);
   ctx.moveTo(o.x + o.taille * 0.1, cy - o.taille * 0.2);
   ctx.lineTo(o.x + o.taille * 0.15, cy);
-  ctx.stroke();
-}
-
-function dessinerPic(o) {
-  dessinerHalo(o.x, SOL_Y - o.taille / 2, o.taille);
-  const grad = ctx.createLinearGradient(o.x - o.taille / 2, SOL_Y, o.x + o.taille / 2, SOL_Y - o.taille);
-  grad.addColorStop(0, "#3a3a3a");
-  grad.addColorStop(0.5, "#6f6f6f");
-  grad.addColorStop(1, "#3a3a3a");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(o.x - o.taille / 2, SOL_Y);
-  ctx.lineTo(o.x, SOL_Y - o.taille);
-  ctx.lineTo(o.x + o.taille / 2, SOL_Y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(o.x, SOL_Y - o.taille);
-  ctx.lineTo(o.x - o.taille * 0.12, SOL_Y - o.taille * 0.3);
   ctx.stroke();
 }
 
@@ -861,8 +907,6 @@ function dessinerObstacles() {
   obstacles.forEach(o => {
     if (o.type === "rocher") {
       dessinerRocher(o);
-    } else if (o.type === "pic") {
-      dessinerPic(o);
     } else if (o.type === "zombie") {
       dessinerZombie(o.x, o.taille, o.decalage, false);
     } else if (o.type === "zombieGeant") {
@@ -918,11 +962,11 @@ function planifierProchainOiseau() {
 
 function creerOiseau() {
   const geant = Math.random() < 0.4;
-  const hauteurVol = 100 + Math.random() * 140;
+  const hauteurVol = (100 + Math.random() * 140) * echelleV;
   oiseaux.push({
     x: canvas.width,
     y: SOL_Y - hauteurVol,
-    envergure: geant ? 85 + Math.random() * 25 : 40 + Math.random() * 16,
+    envergure: (geant ? 85 + Math.random() * 25 : 40 + Math.random() * 16) * echelleV,
     decalage: Math.random() * 100,
     geant
   });
@@ -1020,7 +1064,7 @@ function verifierCollisionOiseaux() {
         oiseaux.splice(i, 1);
       } else if (estRebond) {
         oiseaux.splice(i, 1);
-        joueur.vitesseY = -14;
+        joueur.vitesseY = sautForce * 0.93;
         sautsRestants = 2;
         bonusPoints += o.geant ? 400 : 300;
         jouerSonBonus();
@@ -1045,7 +1089,7 @@ function creerPassageOiseaux() {
     x: canvas.width + 50,
     y,
     vitesse,
-    envergure: 42,
+    envergure: 42 * echelleV,
     decalageAnim: Math.random() * 100
   });
 }
@@ -1104,11 +1148,11 @@ function verifierCollisionPassages() {
 
 // ---------- DRAGONS GÉANTS CRACHEURS DE FEU ----------
 function creerDragon() {
-  const hauteurVol = 260 + Math.random() * 100;
+  const hauteurVol = (260 + Math.random() * 100) * echelleV;
   dragons.push({
     x: canvas.width + 100,
     y: SOL_Y - hauteurVol,
-    envergure: 260,
+    envergure: 260 * echelleV,
     decalage: Math.random() * 100,
     prochainSon: 0,
     flammes: []
@@ -1228,10 +1272,11 @@ function dessinerDragon(d) {
   ctx.closePath();
   ctx.fill();
 
+  // Flammes agrandies
   d.flammes.forEach(f => {
     const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.taille);
-    grad.addColorStop(0, "rgba(255,255,180,0.9)");
-    grad.addColorStop(0.5, "rgba(255,140,0,0.8)");
+    grad.addColorStop(0, "rgba(255,255,180,0.95)");
+    grad.addColorStop(0.45, "rgba(255,140,0,0.85)");
     grad.addColorStop(1, "rgba(200,30,0,0)");
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -1252,14 +1297,14 @@ function majDragon(d) {
   const origineX = d.x - d.envergure * 0.6;
   const origineY = d.y;
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     d.flammes.push({
-      x: origineX + (Math.random() * 10 - 5),
+      x: origineX + (Math.random() * 12 - 6),
       y: origineY,
       vx: -(1 + Math.random() * 1.5),
       vy: 2 + Math.random() * 1.5,
-      taille: 9 + Math.random() * 9,
-      vie: 70
+      taille: (17 + Math.random() * 16) * echelleV,
+      vie: 75
     });
   }
   d.flammes.forEach(f => {
@@ -1268,7 +1313,7 @@ function majDragon(d) {
     f.vy += 0.35;
     if (f.y >= SOL_Y) f.y = SOL_Y;
     f.vie--;
-    f.taille *= 0.985;
+    f.taille *= 0.99;
   });
   d.flammes = d.flammes.filter(f => f.vie > 0);
 }
@@ -1286,7 +1331,7 @@ function activerPouvoirDragon() {
   joueurGeantFin = compteur + 600;
   joueurInvincible = true;
   clignoteFin = compteur + 120;
-  joueur.vitesseY = -16;
+  joueur.vitesseY = sautForce * 1.067;
   sautsRestants = 2;
   jouerSonPouvoir();
 }
@@ -1309,7 +1354,7 @@ function verifierCollisionDragons() {
     const chevaucheY = hautJ < basD && piedsJ > hautD;
 
     if (!jeuTermine && chevaucheX && chevaucheY) {
-      const surLeDos = joueur.vitesseY > 0 && (piedsJ - hautD) < 35;
+      const surLeDos = joueur.vitesseY > 0 && (piedsJ - hautD) < 35 * echelleV;
       if (surLeDos && !joueurGeant) {
         activerPouvoirDragon();
       } else if (!joueurInvincible) {
@@ -1437,6 +1482,9 @@ function terminerJeu() {
     jouerFanfareVictoire();
     animerVictoire();
   } else {
+    if (navigator.vibrate) {
+      navigator.vibrate(200);
+    }
     jouerSonExplosion();
     const cx = joueur.x + 40;
     const cy = joueur.y + joueur.hauteur - 20;
@@ -1535,7 +1583,14 @@ function dessinerScore() {
 function resetJeu() {
   redimensionner();
   boutonRejouer.style.display = "none";
-  joueur = { x: 50, y: SOL_Y - 44, largeur: 30, hauteur: 44, vitesseY: 0, surLeSol: false };
+  joueur = {
+    x: 50,
+    y: SOL_Y - 44 * echelleV,
+    largeur: 30 * echelleV,
+    hauteur: 44 * echelleV,
+    vitesseY: 0,
+    surLeSol: false
+  };
   obstacles = [];
   oiseaux = [];
   passagesOiseaux = [];
@@ -1559,7 +1614,6 @@ function resetJeu() {
   joueurGeant = false;
   joueurGeantFin = 0;
   joueurInvincible = false;
-  joueurAiles = false;
   clignoteFin = 0;
   debris = [];
   echelleGeant = 1;
@@ -1671,7 +1725,7 @@ function boucle() {
 function sauter() {
   initAudio();
   if (jeuTermine) return;
-  joueur.vitesseY = -15;
+  joueur.vitesseY = sautForce;
 }
 
 document.addEventListener("keydown", (e) => {
