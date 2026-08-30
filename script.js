@@ -31,8 +31,10 @@ let flashExplosion = 0;
 let dragons;
 let prochainPalierDragon = 400;
 let montagnes;
+let debris = [];
+let echelleGeant = 1;
 
-// Pouvoir "dragon" : géant, invincible, ailes
+// Pouvoir "dragon" : géant, invincible
 let joueurGeant = false;
 let joueurGeantFin = 0;
 let joueurInvincible = false;
@@ -225,7 +227,7 @@ function jouerSonBonus() {
   }
 }
 
-// ---------- DÉCOR (arrière-plan amélioré) ----------
+// ---------- DÉCOR ----------
 function initDecor() {
   nuages = [];
   for (let i = 0; i < 5; i++) {
@@ -335,7 +337,6 @@ function dessinerMontagnes() {
     ctx.closePath();
     ctx.fill();
 
-    // Neige au sommet
     ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.beginPath();
     ctx.moveTo(m.x + m.largeur * 0.5, SOL_Y - m.hauteur);
@@ -364,7 +365,6 @@ function dessinerNuageRealiste(n) {
     ctx.arc(dx, dy, r, 0, Math.PI * 2);
     ctx.fill();
   });
-  // Ombre légère dessous pour le volume
   ctx.fillStyle = "rgba(150,160,180,0.25)";
   ctx.beginPath();
   ctx.ellipse(15, 10, 30, 8, 0, 0, Math.PI * 2);
@@ -416,7 +416,6 @@ function dessinerFond(points) {
   }
 }
 
-// Sol façon gazon détaillé
 function dessinerSol() {
   const gradSol = ctx.createLinearGradient(0, SOL_Y, 0, canvas.height);
   gradSol.addColorStop(0, "#7cb342");
@@ -433,7 +432,6 @@ function dessinerSol() {
     ctx.stroke();
   }
 
-  // Touffes d'herbe le long de la ligne de sol
   ctx.strokeStyle = "#4f7a25";
   ctx.lineWidth = 2;
   for (let x = -((compteur * (vitesseDefilement || 1)) % 10); x < canvas.width; x += 9) {
@@ -567,30 +565,51 @@ function dessinerPersonnage(x, pieds, echelle, couleurShirt) {
   ctx.stroke();
 }
 
-function dessinerAiles(x, pieds, mult) {
-  const y = pieds - 32 * mult;
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.strokeStyle = "rgba(220,220,255,0.9)";
-  ctx.lineWidth = 1.5;
-  // Aile gauche
-  ctx.beginPath();
-  ctx.moveTo(x - 3 * mult, y);
-  ctx.quadraticCurveTo(x - 38 * mult, y - 26 * mult, x - 52 * mult, y + 8 * mult);
-  ctx.quadraticCurveTo(x - 28 * mult, y + 14 * mult, x - 3 * mult, y + 8 * mult);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Aile droite
-  ctx.beginPath();
-  ctx.moveTo(x + 58 * mult, y);
-  ctx.quadraticCurveTo(x + 92 * mult, y - 26 * mult, x + 106 * mult, y + 8 * mult);
-  ctx.quadraticCurveTo(x + 82 * mult, y + 14 * mult, x + 58 * mult, y + 8 * mult);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+function creerDebris(x, y, taille, couleur) {
+  debris.push({
+    x, y,
+    vx: (Math.random() * 6 - 3) + 3,
+    vy: -7 - Math.random() * 5,
+    rotation: 0,
+    vitesseRotation: (Math.random() * 0.35 + 0.15) * (Math.random() < 0.5 ? -1 : 1),
+    taille,
+    couleur,
+    vie: 55
+  });
 }
 
-function multiplicateurGeant() { return joueurGeant ? 2.6 : 1; }
+function majEtDessinerDebris() {
+  debris.forEach(d => {
+    d.x += d.vx;
+    d.y += d.vy;
+    d.vy += 0.25;
+    d.rotation += d.vitesseRotation;
+    d.vie--;
+
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.rotation);
+    ctx.globalAlpha = Math.max(0, d.vie / 55);
+    ctx.fillStyle = d.couleur;
+    ctx.fillRect(-d.taille / 2, -d.taille / 2, d.taille, d.taille);
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-d.taille / 2, -d.taille / 2, d.taille, d.taille);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  });
+  debris = debris.filter(d => d.vie > 0);
+}
+
+function couleurObstacle(type) {
+  if (type === "rocher") return "#8a7a68";
+  if (type === "pic") return "#5a5a5a";
+  if (type === "zombie") return "#6b9457";
+  if (type === "zombieGeant") return "#3d5a35";
+  return "#8b5a2b";
+}
+
+function multiplicateurGeant() { return echelleGeant; }
 function largeurTotaleDuo() { return (26 + 42 * 1.4) * multiplicateurGeant(); }
 function hauteurMaxDuo() { return (44 * 1.4) * multiplicateurGeant(); }
 
@@ -618,10 +637,6 @@ function dessinerJoueur() {
   const enClignote = joueurGeant && compteur < clignoteFin;
   if (enClignote && Math.floor(compteur / 4) % 2 === 0) {
     return;
-  }
-
-  if (joueurAiles) {
-    dessinerAiles(joueur.x, pieds, mult);
   }
 
   dessinerPersonnage(joueur.x, pieds, 1 * mult, "#3b82f6");
@@ -654,7 +669,6 @@ function creerObstacle() {
 function dessinerZombie(x, taille, decalage, geant) {
   const balancement = Math.sin((compteur + decalage) / 8) * (geant ? 6 : 3);
   const hautZ = SOL_Y - taille;
-  const nuit = 1 - luminositeGlobale;
 
   dessinerHalo(x, hautZ + taille * 0.5, taille * (geant ? 1.1 : 0.9));
 
@@ -666,7 +680,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   gradPeau.addColorStop(0, couleurPeauClaire);
   gradPeau.addColorStop(1, couleurPeauFoncee);
 
-  // Jambes
   ctx.strokeStyle = "#1a1a1a";
   ctx.lineWidth = taille * 0.15;
   ctx.lineCap = "round";
@@ -677,7 +690,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.lineTo(x + taille / 5, SOL_Y);
   ctx.stroke();
 
-  // Torse déchiré
   ctx.fillStyle = couleurVetement;
   ctx.fillRect(x - taille / 3, hautZ + taille * 0.32, taille / 1.5, taille * 0.55);
   ctx.fillStyle = gradPeau;
@@ -694,7 +706,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.closePath();
   ctx.fill();
 
-  // Côtes visibles (géant seulement)
   if (geant) {
     ctx.strokeStyle = "rgba(0,0,0,0.35)";
     ctx.lineWidth = 1.5;
@@ -706,7 +717,6 @@ function dessinerZombie(x, taille, decalage, geant) {
     }
   }
 
-  // Bras
   ctx.strokeStyle = gradPeau;
   ctx.lineWidth = taille * (geant ? 0.13 : 0.1);
   ctx.beginPath();
@@ -715,7 +725,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.moveTo(x + taille / 3, hautZ + taille * 0.42);
   ctx.lineTo(x + taille / 2 + balancement, hautZ + taille * 0.25);
   ctx.stroke();
-  // Griffes
   ctx.strokeStyle = "#111";
   ctx.lineWidth = 2;
   [-1, 1].forEach(sens => {
@@ -729,13 +738,11 @@ function dessinerZombie(x, taille, decalage, geant) {
     }
   });
 
-  // Tête
   ctx.fillStyle = gradPeau;
   ctx.beginPath();
   ctx.arc(x, hautZ + taille * 0.16, taille * 0.19, 0, Math.PI * 2);
   ctx.fill();
 
-  // Yeux rouges lumineux
   const halov = ctx.createRadialGradient(x, hautZ + taille * 0.15, 1, x, hautZ + taille * 0.15, taille * 0.12);
   halov.addColorStop(0, "rgba(255,60,40,0.8)");
   halov.addColorStop(1, "rgba(255,60,40,0)");
@@ -749,7 +756,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   ctx.arc(x + taille * 0.08, hautZ + taille * 0.18, taille * 0.04, 0, Math.PI * 2);
   ctx.fill();
 
-  // Bouche / mâchoire
   ctx.strokeStyle = "#0a0a0a";
   ctx.lineWidth = taille * 0.02;
   ctx.beginPath();
@@ -768,7 +774,6 @@ function dessinerZombie(x, taille, decalage, geant) {
   }
 
   if (geant) {
-    // Couronne d'épines
     ctx.fillStyle = "#111";
     for (let i = -2; i <= 2; i++) {
       ctx.beginPath();
@@ -778,7 +783,6 @@ function dessinerZombie(x, taille, decalage, geant) {
       ctx.closePath();
       ctx.fill();
     }
-    // Aura menaçante
     ctx.strokeStyle = `rgba(120,0,0,${0.3 + 0.2 * Math.sin(compteur / 10)})`;
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -846,7 +850,6 @@ function dessinerCaisse(o) {
   ctx.moveTo(gx + o.taille, gy);
   ctx.lineTo(gx, gy + o.taille);
   ctx.stroke();
-  // Coins métalliques
   ctx.fillStyle = "#c9c9c9";
   const c = o.taille * 0.14;
   [[gx, gy], [gx + o.taille - c, gy], [gx, gy + o.taille - c], [gx + o.taille - c, gy + o.taille - c]].forEach(([px, py]) => {
@@ -876,14 +879,14 @@ function deplacerObstacles() {
 }
 
 function verifierCollision() {
-  if (joueurInvincible) return;
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
   const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
   const piedsJ = joueur.y + joueur.hauteur - 2;
   const hautJ = piedsJ - hauteurMaxDuo() + 8;
 
-  obstacles.forEach(o => {
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
     const margeO = o.type === "zombieGeant" ? 10 : 6;
     const oGauche = o.x - o.taille / 2 + margeO;
     const oDroite = o.x + o.taille / 2 - margeO;
@@ -896,11 +899,16 @@ function verifierCollision() {
       hautJ < SOL_Y &&
       piedsJ > oHaut
     ) {
-      jeuTermine = true;
-      victoire = false;
-      terminerJeu();
+      if (joueurGeant) {
+        creerDebris(o.x, SOL_Y - o.taille / 2, Math.min(o.taille * 0.6, 30), couleurObstacle(o.type));
+        obstacles.splice(i, 1);
+      } else if (!joueurInvincible) {
+        jeuTermine = true;
+        victoire = false;
+        terminerJeu();
+      }
     }
-  });
+  }
 }
 
 // ---------- OISEAUX ----------
@@ -932,7 +940,6 @@ function dessinerOiseaux() {
     gradCorps.addColorStop(0, couleurClaire);
     gradCorps.addColorStop(1, couleurFoncee);
 
-    // Aile arrière
     ctx.fillStyle = couleurFoncee;
     ctx.beginPath();
     ctx.moveTo(o.x - o.envergure * 0.05, o.y);
@@ -941,13 +948,11 @@ function dessinerOiseaux() {
     ctx.closePath();
     ctx.fill();
 
-    // Corps
     ctx.fillStyle = gradCorps;
     ctx.beginPath();
     ctx.ellipse(o.x, o.y, o.envergure * 0.28, o.envergure * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Plumes du corps (traits)
     ctx.strokeStyle = "rgba(0,0,0,0.2)";
     ctx.lineWidth = 1;
     for (let i = -1; i <= 1; i++) {
@@ -957,7 +962,6 @@ function dessinerOiseaux() {
       ctx.stroke();
     }
 
-    // Tête
     ctx.fillStyle = couleurClaire;
     ctx.beginPath();
     ctx.arc(o.x + o.envergure * 0.22, o.y - o.envergure * 0.06, o.envergure * 0.13, 0, Math.PI * 2);
@@ -975,7 +979,6 @@ function dessinerOiseaux() {
     ctx.arc(o.x + o.envergure * 0.24, o.y - o.envergure * 0.09, o.geant ? 3 : 1.6, 0, Math.PI * 2);
     ctx.fill();
 
-    // Aile avant
     ctx.strokeStyle = couleurFoncee;
     ctx.lineWidth = o.geant ? 5 : 3.5;
     ctx.lineCap = "round";
@@ -1012,13 +1015,16 @@ function verifierCollisionOiseaux() {
     if (!jeuTermine && chevaucheX && chevaucheY) {
       const estRebond = joueur.vitesseY > 0 && (piedsJ - o.y) < o.envergure * 0.3;
 
-      if (estRebond) {
+      if (joueurGeant) {
+        creerDebris(o.x, o.y, o.envergure * 0.35, o.geant ? "#7a3b1f" : "#4a5b6e");
+        oiseaux.splice(i, 1);
+      } else if (estRebond) {
         oiseaux.splice(i, 1);
         joueur.vitesseY = -14;
         sautsRestants = 2;
         bonusPoints += o.geant ? 400 : 300;
         jouerSonBonus();
-      } else if (!joueurInvincible) {
+      } else {
         jeuTermine = true;
         victoire = false;
         terminerJeu();
@@ -1063,14 +1069,14 @@ function deplacerEtDessinerPassages() {
 }
 
 function verifierCollisionPassages() {
-  if (joueurInvincible) return;
   const margeJ = 5;
   const gaucheJ = joueur.x + margeJ;
   const droiteJ = joueur.x + largeurTotaleDuo() - margeJ;
   const piedsJ = joueur.y + joueur.hauteur - 2;
   const hautJ = piedsJ - hauteurMaxDuo() + 8;
 
-  passagesOiseaux.forEach(o => {
+  for (let i = passagesOiseaux.length - 1; i >= 0; i--) {
+    const o = passagesOiseaux[i];
     const margeO = 4;
     const gaucheO = o.x - o.envergure / 2 + margeO;
     const droiteO = o.x + o.envergure / 2 - margeO;
@@ -1084,11 +1090,16 @@ function verifierCollisionPassages() {
       hautJ < basO &&
       piedsJ > hautO
     ) {
-      jeuTermine = true;
-      victoire = false;
-      terminerJeu();
+      if (joueurGeant) {
+        creerDebris(o.x, o.y, o.envergure * 0.4, "#2c2c2c");
+        passagesOiseaux.splice(i, 1);
+      } else if (!joueurInvincible) {
+        jeuTermine = true;
+        victoire = false;
+        terminerJeu();
+      }
     }
-  });
+  }
 }
 
 // ---------- DRAGONS GÉANTS CRACHEURS DE FEU ----------
@@ -1217,7 +1228,6 @@ function dessinerDragon(d) {
   ctx.closePath();
   ctx.fill();
 
-  // Feu continu
   d.flammes.forEach(f => {
     const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.taille);
     grad.addColorStop(0, "rgba(255,255,180,0.9)");
@@ -1275,7 +1285,6 @@ function activerPouvoirDragon() {
   joueurGeant = true;
   joueurGeantFin = compteur + 600;
   joueurInvincible = true;
-  joueurAiles = true;
   clignoteFin = compteur + 120;
   joueur.vitesseY = -16;
   sautsRestants = 2;
@@ -1552,6 +1561,8 @@ function resetJeu() {
   joueurInvincible = false;
   joueurAiles = false;
   clignoteFin = 0;
+  debris = [];
+  echelleGeant = 1;
   planifierProchainObstacle();
   planifierProchainOiseau();
   planifierProchainPassage();
@@ -1582,8 +1593,11 @@ function maj() {
   if (joueurGeant && compteur >= joueurGeantFin) {
     joueurGeant = false;
     joueurInvincible = false;
-    joueurAiles = false;
   }
+
+  const cibleEchelle = joueurGeant ? 2.6 : 1;
+  echelleGeant += (cibleEchelle - echelleGeant) * 0.08;
+  if (Math.abs(cibleEchelle - echelleGeant) < 0.01) echelleGeant = cibleEchelle;
 
   compteur++;
 
@@ -1640,6 +1654,7 @@ function boucle() {
   dessinerObstacles();
   dessinerOiseaux();
   deplacerEtDessinerDragons();
+  majEtDessinerDebris();
   dessinerJoueur();
 
   if (pointsActuels() >= 700) {
